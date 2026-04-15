@@ -598,4 +598,288 @@ interface CsvTelemetryOptions {
 }
 declare const fromCsvTelemetry: (csv: string, options?: CsvTelemetryOptions) => FormattedTelemetry;
 
-export { type AnnotationProps, type ChartContainerProps, type CsvExportOptions, type CsvTelemetryOptions, type CursorSyncProps, type DataProcessingOptions, type DeltaPoint, type DistanceBasedTelemetry, type DownsampleStrategy, type DriverGapData, type DriverLapTelemetry, type DriverMetrics, type DriverPitStops, type DriverPositionData, type DriverPositionHistory, type DriverSectorData, type DriverStrategy, EnergyChart, type EnergyChartProps, type FastF1TelemetryInput, type FastF1TelemetryPoint, type FormattedTelemetry, GapChart, type GapChartProps, type GapDataPoint, GearChart, type GearChartProps, type JsonExportFormat, LapComparisonChart, type LapComparisonChartProps, type LapComparisonMode, type LapSectors, type LapTime, MiniSectors, type MiniSectorsProps, type OpenF1TelemetryPoint, type OvertakeEvent, type PitStop, PitStopTimeline, type PitStopTimelineProps, PositionChart, type PositionChartProps, RadarChart, type RadarChartProps, type RawTelemetryInput, type RawTelemetryPoint, type SectorComparison, type SectorSplit, type SectorTime, SpeedChart, type SpeedChartProps, SpeedHeatmapTrackMap, type SpeedHeatmapTrackMapProps, type TelemetryAnnotation, type TelemetryAnnotationType, TelemetryDashboard, type TelemetryDashboardProps, type TelemetryPanelExtension, type TelemetryPanelRenderContext, type TelemetrySeverity, type TelemetryStyleTokens, type TelemetryValidationIssue, type TelemetryValidationResult, type TelemetryWindow, type ThemeMode, ThrottleBrakeChart, type ThrottleBrakeChartProps, type TimeDeltaPoint, TrackMap, type TrackMapProps, type TyreClassification, type TyreCompound, type TyreStint, TyreStrategyTimeline, type TyreStrategyTimelineProps, type WeatherDataPoint, WeatherWidget, type WeatherWidgetProps, classifyTyreCompound, clearTelemetryPanels, computeLapTimes, computeSectorTimes, computeSpeedDelta, computeTimeDelta, createLineAnnotationDatasets, createTelemetryCssVariables, createTrackAnnotationDataset, createTrackAnnotationDatasets, detectOvertakes, exportToCsv, exportToJson, findNearestIndex, formatTelemetry, fromCsvTelemetry, fromFastF1Telemetry, fromOpenF1Telemetry, getTelemetryPanels, interpolateTelemetry, mergeTelemetry, normalizeDistance, processSeriesData, registerTelemetryPanel, telemetryCssVariables, unregisterTelemetryPanel, validateTelemetry };
+interface ErgastDriver {
+    driverId: string;
+    permanentNumber: string;
+    code: string;
+    givenName: string;
+    familyName: string;
+}
+interface ErgastConstructor {
+    constructorId: string;
+    name: string;
+}
+interface ErgastRaceResult {
+    number: string;
+    position: string;
+    points: string;
+    Driver: ErgastDriver;
+    Constructor: ErgastConstructor;
+    grid: string;
+    laps: string;
+    status: string;
+    Time?: {
+        millis: string;
+        time: string;
+    };
+    FastestLap?: {
+        rank: string;
+        lap: string;
+        Time: {
+            time: string;
+        };
+        AverageSpeed: {
+            speed: string;
+            units: string;
+        };
+    };
+}
+interface ErgastLapTime {
+    number: string;
+    Timings: Array<{
+        driverId: string;
+        position: string;
+        time: string;
+    }>;
+}
+interface ErgastRaceData {
+    raceName: string;
+    round: string;
+    Circuit: {
+        circuitId: string;
+        circuitName: string;
+        Location: {
+            lat: string;
+            long: string;
+            locality: string;
+            country: string;
+        };
+    };
+    Results?: ErgastRaceResult[];
+    Laps?: ErgastLapTime[];
+}
+interface ParsedRaceResult {
+    driver: string;
+    driverFullName: string;
+    team: string;
+    position: number;
+    gridPosition: number;
+    points: number;
+    lapsCompleted: number;
+    status: string;
+    totalTimeMs?: number;
+    fastestLapTime?: number;
+    fastestLapNumber?: number;
+    fastestLapRank?: number;
+    averageSpeedKmh?: number;
+}
+interface ParsedLapTimes {
+    driver: string;
+    laps: Array<{
+        lap: number;
+        position: number;
+        time: number;
+    }>;
+}
+interface ErgastParsedData {
+    raceName: string;
+    round: number;
+    circuit: {
+        id: string;
+        name: string;
+        lat: number;
+        lng: number;
+        locality: string;
+        country: string;
+    };
+    results: ParsedRaceResult[];
+    lapTimes: ParsedLapTimes[];
+}
+declare const fromErgastApi: (data: ErgastRaceData) => ErgastParsedData;
+
+interface MultiViewerCarData {
+    timestamp: string;
+    driverNumber: number;
+    channels: {
+        speed?: number;
+        rpm?: number;
+        gear?: number;
+        throttle?: number;
+        brake?: number | boolean;
+        drs?: number;
+    };
+    position?: {
+        x: number;
+        y: number;
+        z: number;
+    };
+}
+interface MultiViewerTimingData {
+    driverNumber: number;
+    driverCode: string;
+    position: number;
+    gapToLeader?: string;
+    lastLapTime?: string;
+    bestLapTime?: string;
+    sector1?: string;
+    sector2?: string;
+    sector3?: string;
+    tyreCompound?: string;
+    tyreAge?: number;
+}
+interface MultiViewerSessionData {
+    sessionType: string;
+    carData?: MultiViewerCarData[];
+    timingData?: MultiViewerTimingData[];
+}
+interface MultiViewerParsedTiming {
+    driverNumber: number;
+    driverCode: string;
+    position: number;
+    gapToLeader: number | null;
+    lastLapTime: number | null;
+    bestLapTime: number | null;
+    sectors: Array<number | null>;
+    tyreCompound: string | null;
+    tyreAge: number | null;
+}
+declare const fromMultiViewerCarData: (data: MultiViewerCarData[]) => FormattedTelemetry;
+declare const fromMultiViewerTiming: (data: MultiViewerTimingData[]) => MultiViewerParsedTiming[];
+
+interface JsonFieldMapping {
+    time?: string;
+    speed?: string;
+    throttle?: string;
+    brake?: string;
+    x?: string;
+    y?: string;
+}
+interface JsonTelemetryOptions {
+    fieldMapping?: JsonFieldMapping;
+    dataPath?: string;
+}
+declare const fromJsonTelemetry: (input: unknown, options?: JsonTelemetryOptions) => FormattedTelemetry;
+
+interface ParquetTelemetryOptions {
+    fieldMapping?: JsonFieldMapping;
+}
+declare const fromParquet: (rows: Record<string, unknown>[], options?: ParquetTelemetryOptions) => FormattedTelemetry;
+
+interface OpenF1FetchOptions {
+    baseUrl?: string;
+    signal?: AbortSignal;
+}
+interface OpenF1SessionInfo {
+    sessionKey: number;
+    sessionName: string;
+    sessionType: string;
+    circuitShortName: string;
+    dateStart: string;
+    dateEnd: string;
+    year: number;
+}
+interface OpenF1DriverInfo {
+    driverNumber: number;
+    fullName: string;
+    nameAcronym: string;
+    teamName: string;
+    teamColour: string;
+}
+declare const fetchOpenF1Telemetry: (sessionKey: number, driverNumber: number, options?: OpenF1FetchOptions) => Promise<FormattedTelemetry>;
+declare const fetchOpenF1Sessions: (year?: number, options?: OpenF1FetchOptions) => Promise<OpenF1SessionInfo[]>;
+declare const fetchOpenF1Drivers: (sessionKey: number, options?: OpenF1FetchOptions) => Promise<OpenF1DriverInfo[]>;
+
+interface F1Team {
+    id: string;
+    name: string;
+    shortName: string;
+    color: string;
+    secondaryColor: string;
+    country: string;
+    principal: string;
+    powerUnit: string;
+    drivers: [string, string];
+}
+interface F1Driver {
+    code: string;
+    number: number;
+    firstName: string;
+    lastName: string;
+    fullName: string;
+    teamId: string;
+    nationality: string;
+    dateOfBirth: string;
+}
+declare const F1_TEAMS: readonly F1Team[];
+declare const TEAM_COLORS: Readonly<Record<string, string>>;
+declare const F1_DRIVERS: readonly F1Driver[];
+declare const getTeam: (teamId: string) => F1Team | undefined;
+declare const getDriver: (code: string) => F1Driver | undefined;
+declare const getDriverColor: (code: string) => string | undefined;
+declare const getTeamDrivers: (teamId: string) => F1Driver[];
+
+interface DRSZone {
+    detectionPoint: number;
+    activationPoint: number;
+    endPoint: number;
+}
+interface F1Track {
+    id: string;
+    name: string;
+    shortName: string;
+    country: string;
+    city: string;
+    lapLength: number;
+    turns: number;
+    drsZones: DRSZone[];
+    sectorDistances: [number, number];
+    lat: number;
+    lng: number;
+}
+declare const TRACKS: readonly F1Track[];
+declare const getTrack: (trackId: string) => F1Track | undefined;
+declare const getTrackIds: () => string[];
+
+interface TyreCompoundInfo {
+    compound: TyreCompound;
+    label: string;
+    color: string;
+    pirelli: string;
+}
+interface RaceCompoundAllocation {
+    trackId: string;
+    hard: string;
+    medium: string;
+    soft: string;
+}
+declare const TYRE_COMPOUNDS: Record<TyreCompound, TyreCompoundInfo>;
+declare const RACE_COMPOUND_ALLOCATIONS: RaceCompoundAllocation[];
+declare const getRaceCompounds: (trackId: string) => RaceCompoundAllocation | undefined;
+declare const getTyreColor: (compound: TyreCompound) => string;
+
+interface FlagType {
+    id: string;
+    name: string;
+    description: string;
+    color: string;
+    emoji: string;
+    causesNeutralization: boolean;
+}
+declare const FLAG_TYPES: readonly FlagType[];
+declare const getFlag: (id: string) => FlagType | undefined;
+
+interface RaceWeekend {
+    round: number;
+    raceName: string;
+    trackId: string;
+    country: string;
+    dateStart: string;
+    raceDate: string;
+    isSprint: boolean;
+}
+declare const RACE_CALENDAR_2025: readonly RaceWeekend[];
+declare const getNextRace: (today?: Date) => RaceWeekend | undefined;
+declare const getSprintWeekends: () => RaceWeekend[];
+declare const getRaceByRound: (round: number) => RaceWeekend | undefined;
+
+export { type AnnotationProps, type ChartContainerProps, type CsvExportOptions, type CsvTelemetryOptions, type CursorSyncProps, type DRSZone, type DataProcessingOptions, type DeltaPoint, type DistanceBasedTelemetry, type DownsampleStrategy, type DriverGapData, type DriverLapTelemetry, type DriverMetrics, type DriverPitStops, type DriverPositionData, type DriverPositionHistory, type DriverSectorData, type DriverStrategy, EnergyChart, type EnergyChartProps, type ErgastParsedData, type ErgastRaceData, type F1Driver, type F1Team, type F1Track, F1_DRIVERS, F1_TEAMS, FLAG_TYPES, type FastF1TelemetryInput, type FastF1TelemetryPoint, type FlagType, type FormattedTelemetry, GapChart, type GapChartProps, type GapDataPoint, GearChart, type GearChartProps, type JsonExportFormat, type JsonFieldMapping, type JsonTelemetryOptions, LapComparisonChart, type LapComparisonChartProps, type LapComparisonMode, type LapSectors, type LapTime, MiniSectors, type MiniSectorsProps, type MultiViewerCarData, type MultiViewerParsedTiming, type MultiViewerSessionData, type MultiViewerTimingData, type OpenF1DriverInfo, type OpenF1FetchOptions, type OpenF1SessionInfo, type OpenF1TelemetryPoint, type OvertakeEvent, type ParquetTelemetryOptions, type ParsedLapTimes, type ParsedRaceResult, type PitStop, PitStopTimeline, type PitStopTimelineProps, PositionChart, type PositionChartProps, RACE_CALENDAR_2025, RACE_COMPOUND_ALLOCATIONS, type RaceCompoundAllocation, type RaceWeekend, RadarChart, type RadarChartProps, type RawTelemetryInput, type RawTelemetryPoint, type SectorComparison, type SectorSplit, type SectorTime, SpeedChart, type SpeedChartProps, SpeedHeatmapTrackMap, type SpeedHeatmapTrackMapProps, TEAM_COLORS, TRACKS, TYRE_COMPOUNDS, type TelemetryAnnotation, type TelemetryAnnotationType, TelemetryDashboard, type TelemetryDashboardProps, type TelemetryPanelExtension, type TelemetryPanelRenderContext, type TelemetrySeverity, type TelemetryStyleTokens, type TelemetryValidationIssue, type TelemetryValidationResult, type TelemetryWindow, type ThemeMode, ThrottleBrakeChart, type ThrottleBrakeChartProps, type TimeDeltaPoint, TrackMap, type TrackMapProps, type TyreClassification, type TyreCompound, type TyreCompoundInfo, type TyreStint, TyreStrategyTimeline, type TyreStrategyTimelineProps, type WeatherDataPoint, WeatherWidget, type WeatherWidgetProps, classifyTyreCompound, clearTelemetryPanels, computeLapTimes, computeSectorTimes, computeSpeedDelta, computeTimeDelta, createLineAnnotationDatasets, createTelemetryCssVariables, createTrackAnnotationDataset, createTrackAnnotationDatasets, detectOvertakes, exportToCsv, exportToJson, fetchOpenF1Drivers, fetchOpenF1Sessions, fetchOpenF1Telemetry, findNearestIndex, formatTelemetry, fromCsvTelemetry, fromErgastApi, fromFastF1Telemetry, fromJsonTelemetry, fromMultiViewerCarData, fromMultiViewerTiming, fromOpenF1Telemetry, fromParquet, getDriver, getDriverColor, getFlag, getNextRace, getRaceByRound, getRaceCompounds, getSprintWeekends, getTeam, getTeamDrivers, getTelemetryPanels, getTrack, getTrackIds, getTyreColor, interpolateTelemetry, mergeTelemetry, normalizeDistance, processSeriesData, registerTelemetryPanel, telemetryCssVariables, unregisterTelemetryPanel, validateTelemetry };

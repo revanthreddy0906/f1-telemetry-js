@@ -52,6 +52,18 @@ All notable changes to this project will be documented in this file.
   - `mergeTelemetry`
   - `exportToJson`
   - `exportToCsv`
+- Five new data adapters:
+  - `fromErgastApi`
+  - `fromMultiViewerCarData` / `fromMultiViewerTiming`
+  - `fromJsonTelemetry`
+  - `fromParquet`
+  - `fetchOpenF1Telemetry` / `fetchOpenF1Sessions` / `fetchOpenF1Drivers`
+- New F1 domain constants module (`src/constants`) with:
+  - teams/drivers/colors
+  - tracks + DRS/sector metadata
+  - tyre compounds + race allocations
+  - flag types
+  - 2025 race calendar helpers
 
 ### Changed
 
@@ -70,3 +82,6 @@ All notable changes to this project will be documented in this file.
   - Upgraded `actions/checkout` and `actions/setup-node` to `v5`
   - Updated CI/release runtime to Node.js 22
   - Added npm auth preflight step in release workflow for clearer publish failures
+- Added test coverage for new adapters/constants:
+  - `tests/adapters-new.test.ts`
+  - `tests/constants.test.ts`
