@@ -92,6 +92,152 @@ interface TrackMapProps extends ChartContainerProps, CursorSyncProps {
     y: number[];
     time?: number[];
 }
+interface GearChartProps extends ChartContainerProps, CursorSyncProps {
+    time: number[];
+    gear: number[];
+    showGearBands?: boolean;
+}
+interface EnergyChartProps extends ChartContainerProps, CursorSyncProps {
+    time: number[];
+    ersDeployment: number[];
+    ersHarvest: number[];
+    batteryLevel?: number[];
+    showBatteryLevel?: boolean;
+}
+type TyreCompound = "soft" | "medium" | "hard" | "intermediate" | "wet";
+interface TyreStint {
+    compound: TyreCompound;
+    startLap: number;
+    endLap: number;
+    label?: string;
+}
+interface DriverStrategy {
+    driver: string;
+    color?: string;
+    stints: TyreStint[];
+}
+interface TyreStrategyTimelineProps {
+    strategies: DriverStrategy[];
+    totalLaps: number;
+    theme?: ThemeMode;
+    className?: string;
+    styleTokens?: Partial<TelemetryStyleTokens>;
+    height?: number;
+    showLapNumbers?: boolean;
+    title?: string;
+    ariaLabel?: string;
+}
+interface GapDataPoint {
+    lap: number;
+    gap: number;
+}
+interface DriverGapData {
+    driver: string;
+    color?: string;
+    data: GapDataPoint[];
+}
+interface GapChartProps extends ChartContainerProps, CursorSyncProps {
+    drivers: DriverGapData[];
+    referenceDriver?: string;
+    invertAxis?: boolean;
+    showDriverLabels?: boolean;
+}
+interface DriverPositionData {
+    driver: string;
+    color?: string;
+    positions: number[];
+}
+interface PositionChartProps extends ChartContainerProps, CursorSyncProps {
+    drivers: DriverPositionData[];
+    totalLaps: number;
+    highlightDrivers?: string[];
+    showDriverLabels?: boolean;
+}
+interface SectorTime {
+    sector: number;
+    time: number;
+}
+interface DriverSectorData {
+    driver: string;
+    color?: string;
+    sectors: SectorTime[];
+}
+type SectorComparison = "personal-best" | "overall-best" | "previous-lap";
+interface MiniSectorsProps {
+    drivers: DriverSectorData[];
+    comparisonMode?: SectorComparison;
+    theme?: ThemeMode;
+    className?: string;
+    styleTokens?: Partial<TelemetryStyleTokens>;
+    title?: string;
+    ariaLabel?: string;
+}
+interface SpeedHeatmapTrackMapProps extends ChartContainerProps, CursorSyncProps {
+    x: number[];
+    y: number[];
+    speed: number[];
+    time?: number[];
+    colorScale?: {
+        min?: string;
+        mid?: string;
+        max?: string;
+    };
+    segmentSize?: number;
+}
+interface DriverMetrics {
+    driver: string;
+    color?: string;
+    metrics: Record<string, number>;
+}
+interface RadarChartProps {
+    drivers: DriverMetrics[];
+    metricLabels?: Record<string, string>;
+    theme?: ThemeMode;
+    height?: number;
+    className?: string;
+    styleTokens?: Partial<TelemetryStyleTokens>;
+    ariaLabel?: string;
+    fillOpacity?: number;
+    title?: string;
+}
+interface PitStop {
+    lap: number;
+    duration: number;
+    tyreCompoundIn?: TyreCompound;
+    tyreCompoundOut?: TyreCompound;
+}
+interface DriverPitStops {
+    driver: string;
+    color?: string;
+    stops: PitStop[];
+}
+interface PitStopTimelineProps {
+    drivers: DriverPitStops[];
+    totalLaps: number;
+    theme?: ThemeMode;
+    className?: string;
+    styleTokens?: Partial<TelemetryStyleTokens>;
+    showDurations?: boolean;
+    highlightSlow?: number;
+    title?: string;
+    ariaLabel?: string;
+}
+interface WeatherDataPoint {
+    time: number;
+    airTemp?: number;
+    trackTemp?: number;
+    humidity?: number;
+    windSpeed?: number;
+    windDirection?: number;
+    rainfall?: number;
+    pressure?: number;
+}
+type WeatherMetric = "airTemp" | "trackTemp" | "humidity" | "windSpeed" | "rainfall";
+interface WeatherWidgetProps extends ChartContainerProps, CursorSyncProps {
+    data: WeatherDataPoint[];
+    showMetrics?: WeatherMetric[];
+    compactMode?: boolean;
+}
 interface FormattedTelemetry {
     time: number[];
     speed: number[];
@@ -156,6 +302,26 @@ declare const TrackMap: ({ x, y, time, theme, height, className, title, ariaLabe
 
 declare const TelemetryDashboard: ({ telemetry, comparison, lapMode, sectorMarkers, annotations, theme, styleTokens, processing, syncCursor, className, chartHeight, trackMapHeight, panelGap, minPanelWidth, includeDefaultPanels, extensions }: TelemetryDashboardProps) => react_jsx_runtime.JSX.Element;
 
+declare const GearChart: ({ time, gear, showGearBands, theme, height, className, title, ariaLabel, processing, styleTokens, showCursor, cursorTime, onCursorTimeChange, annotations, showAnnotations }: GearChartProps) => react_jsx_runtime.JSX.Element;
+
+declare const EnergyChart: ({ time, ersDeployment, ersHarvest, batteryLevel, showBatteryLevel, theme, height, className, title, ariaLabel, processing, styleTokens, showCursor, cursorTime, onCursorTimeChange, annotations, showAnnotations }: EnergyChartProps) => react_jsx_runtime.JSX.Element;
+
+declare const TyreStrategyTimeline: ({ strategies, totalLaps, theme, className, styleTokens, height, showLapNumbers, title, ariaLabel }: TyreStrategyTimelineProps) => react_jsx_runtime.JSX.Element;
+
+declare const GapChart: ({ drivers, referenceDriver, invertAxis, showDriverLabels, theme, height, className, title, ariaLabel, processing, styleTokens, showCursor, cursorTime, onCursorTimeChange, annotations, showAnnotations }: GapChartProps) => react_jsx_runtime.JSX.Element;
+
+declare const PositionChart: ({ drivers, totalLaps, highlightDrivers, showDriverLabels, theme, height, className, title, ariaLabel, processing, styleTokens, showCursor, cursorTime, onCursorTimeChange, annotations, showAnnotations }: PositionChartProps) => react_jsx_runtime.JSX.Element;
+
+declare const MiniSectors: ({ drivers, comparisonMode, theme, className, styleTokens, title, ariaLabel }: MiniSectorsProps) => react_jsx_runtime.JSX.Element;
+
+declare const SpeedHeatmapTrackMap: ({ x, y, speed, time, colorScale, segmentSize, theme, height, className, title, ariaLabel, processing, styleTokens, showCursor, cursorTime, onCursorTimeChange, annotations, showAnnotations }: SpeedHeatmapTrackMapProps) => react_jsx_runtime.JSX.Element;
+
+declare const RadarChart: ({ drivers, metricLabels, theme, height, className, styleTokens, ariaLabel, fillOpacity, title }: RadarChartProps) => react_jsx_runtime.JSX.Element;
+
+declare const PitStopTimeline: ({ drivers, totalLaps, theme, className, styleTokens, showDurations, highlightSlow, title, ariaLabel }: PitStopTimelineProps) => react_jsx_runtime.JSX.Element;
+
+declare const WeatherWidget: ({ data, showMetrics, compactMode, theme, height, className, title, ariaLabel, processing, styleTokens, showCursor, cursorTime, onCursorTimeChange, annotations, showAnnotations }: WeatherWidgetProps) => react_jsx_runtime.JSX.Element;
+
 declare const formatTelemetry: (data: RawTelemetryInput) => FormattedTelemetry;
 
 type SeriesMap = Record<string, number[]>;
@@ -182,6 +348,13 @@ declare const createLineAnnotationDatasets: (annotations: TelemetryAnnotation[] 
     y: number;
 }[]>[];
 declare const createTrackAnnotationDataset: (annotations: TelemetryAnnotation[] | undefined, trackPoints: Array<{
+    x: number;
+    y: number;
+}>, time: number[], palette: TelemetryStyleTokens) => ChartDataset<"scatter", {
+    x: number;
+    y: number;
+}[]>[];
+declare const createTrackAnnotationDatasets: (annotations: TelemetryAnnotation[] | undefined, trackPoints: Array<{
     x: number;
     y: number;
 }>, time: number[], palette: TelemetryStyleTokens) => ChartDataset<"scatter", {
@@ -231,4 +404,4 @@ interface CsvTelemetryOptions {
 }
 declare const fromCsvTelemetry: (csv: string, options?: CsvTelemetryOptions) => FormattedTelemetry;
 
-export { type AnnotationProps, type ChartContainerProps, type CsvTelemetryOptions, type CursorSyncProps, type DataProcessingOptions, type DownsampleStrategy, type DriverLapTelemetry, type FastF1TelemetryInput, type FastF1TelemetryPoint, type FormattedTelemetry, LapComparisonChart, type LapComparisonChartProps, type LapComparisonMode, type OpenF1TelemetryPoint, type RawTelemetryInput, type RawTelemetryPoint, SpeedChart, type SpeedChartProps, type TelemetryAnnotation, type TelemetryAnnotationType, TelemetryDashboard, type TelemetryDashboardProps, type TelemetryPanelExtension, type TelemetryPanelRenderContext, type TelemetrySeverity, type TelemetryStyleTokens, type TelemetryValidationIssue, type TelemetryValidationResult, type TelemetryWindow, type ThemeMode, ThrottleBrakeChart, type ThrottleBrakeChartProps, TrackMap, type TrackMapProps, clearTelemetryPanels, createLineAnnotationDatasets, createTelemetryCssVariables, createTrackAnnotationDataset, findNearestIndex, formatTelemetry, fromCsvTelemetry, fromFastF1Telemetry, fromOpenF1Telemetry, getTelemetryPanels, processSeriesData, registerTelemetryPanel, telemetryCssVariables, unregisterTelemetryPanel, validateTelemetry };
+export { type AnnotationProps, type ChartContainerProps, type CsvTelemetryOptions, type CursorSyncProps, type DataProcessingOptions, type DownsampleStrategy, type DriverGapData, type DriverLapTelemetry, type DriverMetrics, type DriverPitStops, type DriverPositionData, type DriverSectorData, type DriverStrategy, EnergyChart, type EnergyChartProps, type FastF1TelemetryInput, type FastF1TelemetryPoint, type FormattedTelemetry, GapChart, type GapChartProps, type GapDataPoint, GearChart, type GearChartProps, LapComparisonChart, type LapComparisonChartProps, type LapComparisonMode, MiniSectors, type MiniSectorsProps, type OpenF1TelemetryPoint, type PitStop, PitStopTimeline, type PitStopTimelineProps, PositionChart, type PositionChartProps, RadarChart, type RadarChartProps, type RawTelemetryInput, type RawTelemetryPoint, type SectorComparison, type SectorTime, SpeedChart, type SpeedChartProps, SpeedHeatmapTrackMap, type SpeedHeatmapTrackMapProps, type TelemetryAnnotation, type TelemetryAnnotationType, TelemetryDashboard, type TelemetryDashboardProps, type TelemetryPanelExtension, type TelemetryPanelRenderContext, type TelemetrySeverity, type TelemetryStyleTokens, type TelemetryValidationIssue, type TelemetryValidationResult, type TelemetryWindow, type ThemeMode, ThrottleBrakeChart, type ThrottleBrakeChartProps, TrackMap, type TrackMapProps, type TyreCompound, type TyreStint, TyreStrategyTimeline, type TyreStrategyTimelineProps, type WeatherDataPoint, WeatherWidget, type WeatherWidgetProps, clearTelemetryPanels, createLineAnnotationDatasets, createTelemetryCssVariables, createTrackAnnotationDataset, createTrackAnnotationDatasets, findNearestIndex, formatTelemetry, fromCsvTelemetry, fromFastF1Telemetry, fromOpenF1Telemetry, getTelemetryPanels, processSeriesData, registerTelemetryPanel, telemetryCssVariables, unregisterTelemetryPanel, validateTelemetry };

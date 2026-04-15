@@ -104,6 +104,176 @@ export interface TrackMapProps extends ChartContainerProps, CursorSyncProps {
   time?: number[];
 }
 
+export interface GearChartProps extends ChartContainerProps, CursorSyncProps {
+  time: number[];
+  gear: number[];
+  showGearBands?: boolean;
+}
+
+export interface EnergyChartProps extends ChartContainerProps, CursorSyncProps {
+  time: number[];
+  ersDeployment: number[];
+  ersHarvest: number[];
+  batteryLevel?: number[];
+  showBatteryLevel?: boolean;
+}
+
+export type TyreCompound = "soft" | "medium" | "hard" | "intermediate" | "wet";
+
+export interface TyreStint {
+  compound: TyreCompound;
+  startLap: number;
+  endLap: number;
+  label?: string;
+}
+
+export interface DriverStrategy {
+  driver: string;
+  color?: string;
+  stints: TyreStint[];
+}
+
+export interface TyreStrategyTimelineProps {
+  strategies: DriverStrategy[];
+  totalLaps: number;
+  theme?: ThemeMode;
+  className?: string;
+  styleTokens?: Partial<TelemetryStyleTokens>;
+  height?: number;
+  showLapNumbers?: boolean;
+  title?: string;
+  ariaLabel?: string;
+}
+
+export interface GapDataPoint {
+  lap: number;
+  gap: number;
+}
+
+export interface DriverGapData {
+  driver: string;
+  color?: string;
+  data: GapDataPoint[];
+}
+
+export interface GapChartProps extends ChartContainerProps, CursorSyncProps {
+  drivers: DriverGapData[];
+  referenceDriver?: string;
+  invertAxis?: boolean;
+  showDriverLabels?: boolean;
+}
+
+export interface DriverPositionData {
+  driver: string;
+  color?: string;
+  positions: number[];
+}
+
+export interface PositionChartProps extends ChartContainerProps, CursorSyncProps {
+  drivers: DriverPositionData[];
+  totalLaps: number;
+  highlightDrivers?: string[];
+  showDriverLabels?: boolean;
+}
+
+export interface SectorTime {
+  sector: number;
+  time: number;
+}
+
+export interface DriverSectorData {
+  driver: string;
+  color?: string;
+  sectors: SectorTime[];
+}
+
+export type SectorComparison = "personal-best" | "overall-best" | "previous-lap";
+
+export interface MiniSectorsProps {
+  drivers: DriverSectorData[];
+  comparisonMode?: SectorComparison;
+  theme?: ThemeMode;
+  className?: string;
+  styleTokens?: Partial<TelemetryStyleTokens>;
+  title?: string;
+  ariaLabel?: string;
+}
+
+export interface SpeedHeatmapTrackMapProps extends ChartContainerProps, CursorSyncProps {
+  x: number[];
+  y: number[];
+  speed: number[];
+  time?: number[];
+  colorScale?: {
+    min?: string;
+    mid?: string;
+    max?: string;
+  };
+  segmentSize?: number;
+}
+
+export interface DriverMetrics {
+  driver: string;
+  color?: string;
+  metrics: Record<string, number>;
+}
+
+export interface RadarChartProps {
+  drivers: DriverMetrics[];
+  metricLabels?: Record<string, string>;
+  theme?: ThemeMode;
+  height?: number;
+  className?: string;
+  styleTokens?: Partial<TelemetryStyleTokens>;
+  ariaLabel?: string;
+  fillOpacity?: number;
+  title?: string;
+}
+
+export interface PitStop {
+  lap: number;
+  duration: number;
+  tyreCompoundIn?: TyreCompound;
+  tyreCompoundOut?: TyreCompound;
+}
+
+export interface DriverPitStops {
+  driver: string;
+  color?: string;
+  stops: PitStop[];
+}
+
+export interface PitStopTimelineProps {
+  drivers: DriverPitStops[];
+  totalLaps: number;
+  theme?: ThemeMode;
+  className?: string;
+  styleTokens?: Partial<TelemetryStyleTokens>;
+  showDurations?: boolean;
+  highlightSlow?: number;
+  title?: string;
+  ariaLabel?: string;
+}
+
+export interface WeatherDataPoint {
+  time: number;
+  airTemp?: number;
+  trackTemp?: number;
+  humidity?: number;
+  windSpeed?: number;
+  windDirection?: number;
+  rainfall?: number;
+  pressure?: number;
+}
+
+export type WeatherMetric = "airTemp" | "trackTemp" | "humidity" | "windSpeed" | "rainfall";
+
+export interface WeatherWidgetProps extends ChartContainerProps, CursorSyncProps {
+  data: WeatherDataPoint[];
+  showMetrics?: WeatherMetric[];
+  compactMode?: boolean;
+}
+
 export interface FormattedTelemetry {
   time: number[];
   speed: number[];

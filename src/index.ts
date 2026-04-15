@@ -3,12 +3,26 @@ export { ThrottleBrakeChart } from "./components/ThrottleBrakeChart";
 export { LapComparisonChart } from "./components/LapComparisonChart";
 export { TrackMap } from "./components/TrackMap";
 export { TelemetryDashboard } from "./components/TelemetryDashboard";
+export { GearChart } from "./components/GearChart";
+export { EnergyChart } from "./components/EnergyChart";
+export { TyreStrategyTimeline } from "./components/TyreStrategyTimeline";
+export { GapChart } from "./components/GapChart";
+export { PositionChart } from "./components/PositionChart";
+export { MiniSectors } from "./components/MiniSectors";
+export { SpeedHeatmapTrackMap } from "./components/SpeedHeatmapTrackMap";
+export { RadarChart } from "./components/RadarChart";
+export { PitStopTimeline } from "./components/PitStopTimeline";
+export { WeatherWidget } from "./components/WeatherWidget";
 
 export { formatTelemetry } from "./utils/formatTelemetry";
 export { processSeriesData, findNearestIndex } from "./utils/processing";
 export { validateTelemetry } from "./utils/validation";
 export { createTelemetryCssVariables, telemetryCssVariables } from "./components/chartTheme";
-export { createLineAnnotationDatasets, createTrackAnnotationDataset } from "./utils/annotations";
+export {
+  createLineAnnotationDatasets,
+  createTrackAnnotationDataset,
+  createTrackAnnotationDatasets
+} from "./utils/annotations";
 export { registerTelemetryPanel, unregisterTelemetryPanel, clearTelemetryPanels, getTelemetryPanels } from "./extensions/registry";
 export * from "./adapters";
 
@@ -30,6 +44,29 @@ export type {
   DriverLapTelemetry,
   LapComparisonChartProps,
   TrackMapProps,
+  GearChartProps,
+  EnergyChartProps,
+  TyreCompound,
+  TyreStint,
+  DriverStrategy,
+  TyreStrategyTimelineProps,
+  GapDataPoint,
+  DriverGapData,
+  GapChartProps,
+  DriverPositionData,
+  PositionChartProps,
+  SectorTime,
+  DriverSectorData,
+  SectorComparison,
+  MiniSectorsProps,
+  SpeedHeatmapTrackMapProps,
+  DriverMetrics,
+  RadarChartProps,
+  PitStop,
+  DriverPitStops,
+  PitStopTimelineProps,
+  WeatherDataPoint,
+  WeatherWidgetProps,
   TelemetryPanelRenderContext,
   TelemetryPanelExtension,
   TelemetryDashboardProps,

@@ -7,8 +7,22 @@ import {
   LineElement,
   LinearScale,
   PointElement,
+  RadarController,
+  RadialLinearScale,
   Title,
   Tooltip
 } from "chart.js";
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler, Decimation);
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  RadarController,
+  RadialLinearScale,
+  Title,
+  Tooltip,
+  Legend,
+  Filler,
+  Decimation
+);

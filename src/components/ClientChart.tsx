@@ -20,7 +20,15 @@ type ScatterChartProps = {
   ariaLabel?: string;
 };
 
-type ClientChartProps = LineChartProps | ScatterChartProps;
+type RadarChartProps = {
+  type: "radar";
+  data: ChartData<"radar">;
+  options?: ChartOptions<"radar">;
+  plugins?: Plugin<"radar">[];
+  ariaLabel?: string;
+};
+
+type ClientChartProps = LineChartProps | ScatterChartProps | RadarChartProps;
 
 export const ClientChart = (props: ClientChartProps) => {
   const [charts, setCharts] = useState<ReactChartModule | null>(null);
@@ -58,6 +66,18 @@ export const ClientChart = (props: ClientChartProps) => {
       <Line
         data={props.data}
         options={props.options as ChartProps<"line">["options"]}
+        plugins={props.plugins}
+        aria-label={props.ariaLabel}
+      />
+    );
+  }
+
+  if (props.type === "radar") {
+    const Radar = charts.Radar;
+    return (
+      <Radar
+        data={props.data}
+        options={props.options as ChartProps<"radar">["options"]}
         plugins={props.plugins}
         aria-label={props.ariaLabel}
       />

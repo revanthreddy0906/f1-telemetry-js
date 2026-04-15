@@ -609,6 +609,7 @@ var createTrackAnnotationDataset = (annotations, trackPoints, time, palette) => 
     };
   });
 };
+var createTrackAnnotationDatasets = createTrackAnnotationDataset;
 
 // src/components/TelemetryCard.tsx
 import { useMemo, useState } from "react";
@@ -690,6 +691,18 @@ var ClientChart = (props) => {
       }
     );
   }
+  if (props.type === "radar") {
+    const Radar = charts.Radar;
+    return /* @__PURE__ */ jsx2(
+      Radar,
+      {
+        data: props.data,
+        options: props.options,
+        plugins: props.plugins,
+        "aria-label": props.ariaLabel
+      }
+    );
+  }
   const Scatter = charts.Scatter;
   return /* @__PURE__ */ jsx2(
     Scatter,
@@ -712,10 +725,24 @@ import {
   LineElement,
   LinearScale,
   PointElement,
+  RadarController,
+  RadialLinearScale,
   Title,
   Tooltip
 } from "chart.js";
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler, Decimation);
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  RadarController,
+  RadialLinearScale,
+  Title,
+  Tooltip,
+  Legend,
+  Filler,
+  Decimation
+);
 
 // src/components/SpeedChart.tsx
 import { jsx as jsx3 } from "react/jsx-runtime";
@@ -1517,6 +1544,1907 @@ var TelemetryDashboard = ({
   );
 };
 
+// src/components/GearChart.tsx
+import { useMemo as useMemo7 } from "react";
+import { jsx as jsx8 } from "react/jsx-runtime";
+var createGearBandPlugin = (enabled, color) => ({
+  id: "f1-telemetry-gear-bands",
+  beforeDatasetsDraw: (chart) => {
+    if (!enabled) {
+      return;
+    }
+    const yScale = chart.scales.y;
+    const chartArea = chart.chartArea;
+    if (!yScale || !chartArea) {
+      return;
+    }
+    const { ctx } = chart;
+    ctx.save();
+    ctx.fillStyle = color;
+    for (let gear = 0; gear < 8; gear += 1) {
+      if (gear % 2 !== 0) {
+        continue;
+      }
+      const top = yScale.getPixelForValue(gear + 0.5);
+      const bottom = yScale.getPixelForValue(gear - 0.5);
+      const height = bottom - top;
+      ctx.fillRect(chartArea.left, top, chartArea.right - chartArea.left, height);
+    }
+    ctx.restore();
+  }
+});
+var GearChart = ({
+  time,
+  gear,
+  showGearBands = true,
+  theme = "dark",
+  height = 320,
+  className,
+  title = "Gear vs Time",
+  ariaLabel,
+  processing,
+  styleTokens,
+  showCursor = true,
+  cursorTime,
+  onCursorTimeChange,
+  annotations,
+  showAnnotations = true
+}) => {
+  const palette = useMemo7(() => resolveThemeTokens(theme, styleTokens), [theme, styleTokens]);
+  const processed = useMemo7(
+    () => processSeriesData({
+      context: "GearChart",
+      time,
+      seriesMap: { gear },
+      processing
+    }),
+    [time, gear, processing]
+  );
+  const points = useMemo7(
+    () => processed.time.map((value, index) => ({
+      x: value,
+      y: Math.max(0, Math.min(8, Math.round(processed.seriesMap.gear[index])))
+    })),
+    [processed.time, processed.seriesMap.gear]
+  );
+  const cursorIndex = findNearestIndex(processed.time, cursorTime);
+  const cursorPoint = cursorIndex >= 0 ? points[cursorIndex] : null;
+  const annotationDatasets = useMemo7(
+    () => createLineAnnotationDatasets(
+      showAnnotations ? annotations : void 0,
+      processed.time,
+      points.map((point) => point.y),
+      palette
+    ),
+    [showAnnotations, annotations, processed.time, points, palette]
+  );
+  const chartData = useMemo7(
+    () => ({
+      datasets: [
+        {
+          label: "Gear",
+          data: points,
+          borderColor: palette.primary,
+          backgroundColor: palette.primarySoft,
+          pointRadius: 0,
+          pointHitRadius: 8,
+          borderWidth: 2,
+          stepped: "before",
+          tension: 0,
+          fill: true
+        },
+        ...showCursor && cursorPoint ? [
+          {
+            label: "Cursor",
+            data: [cursorPoint],
+            borderColor: palette.primary,
+            backgroundColor: palette.primary,
+            showLine: false,
+            pointRadius: 4
+          }
+        ] : [],
+        ...annotationDatasets
+      ]
+    }),
+    [points, palette, showCursor, cursorPoint, annotationDatasets]
+  );
+  const options = useMemo7(() => {
+    const base = createLineOptions(palette, "Gear", { min: 0, max: 8 });
+    return {
+      ...base,
+      scales: {
+        ...base.scales,
+        y: {
+          ...base.scales?.y,
+          min: 0,
+          max: 8,
+          ticks: {
+            stepSize: 1,
+            color: palette.mutedText
+          }
+        }
+      },
+      onHover: (_event, elements) => {
+        if (!onCursorTimeChange) {
+          return;
+        }
+        if (elements.length === 0) {
+          onCursorTimeChange(null);
+          return;
+        }
+        onCursorTimeChange(points[elements[0].index]?.x ?? null);
+      }
+    };
+  }, [palette, onCursorTimeChange, points]);
+  const plugins = useMemo7(
+    () => [
+      createGearBandPlugin(showGearBands, palette.primarySoft),
+      ...showCursor ? [createCursorLinePlugin(cursorTime, palette.mutedText)] : [],
+      ...showAnnotations ? [createAnnotationMarkersPlugin(annotations, palette.grid, palette.mutedText)] : []
+    ],
+    [
+      showGearBands,
+      palette.primarySoft,
+      showCursor,
+      cursorTime,
+      palette.mutedText,
+      showAnnotations,
+      annotations,
+      palette.grid
+    ]
+  );
+  return /* @__PURE__ */ jsx8(
+    TelemetryCard,
+    {
+      theme,
+      height,
+      className,
+      title,
+      styleTokens,
+      ariaLabel,
+      defaultAriaLabel: "Telemetry gear chart",
+      children: /* @__PURE__ */ jsx8(
+        ClientChart,
+        {
+          type: "line",
+          data: chartData,
+          options,
+          plugins,
+          ariaLabel: ariaLabel ?? "Gear over time chart"
+        }
+      )
+    }
+  );
+};
+
+// src/components/EnergyChart.tsx
+import { useMemo as useMemo8 } from "react";
+import { jsx as jsx9 } from "react/jsx-runtime";
+var EnergyChart = ({
+  time,
+  ersDeployment,
+  ersHarvest,
+  batteryLevel,
+  showBatteryLevel = true,
+  theme = "dark",
+  height = 320,
+  className,
+  title = "ERS Energy",
+  ariaLabel,
+  processing,
+  styleTokens,
+  showCursor = true,
+  cursorTime,
+  onCursorTimeChange,
+  annotations,
+  showAnnotations = true
+}) => {
+  const palette = useMemo8(() => resolveThemeTokens(theme, styleTokens), [theme, styleTokens]);
+  const processed = useMemo8(
+    () => processSeriesData({
+      context: "EnergyChart",
+      time,
+      seriesMap: {
+        deployment: ersDeployment,
+        harvest: ersHarvest,
+        battery: batteryLevel ?? ersDeployment.map(() => 0)
+      },
+      processing
+    }),
+    [time, ersDeployment, ersHarvest, batteryLevel, processing]
+  );
+  const deploymentPoints = useMemo8(
+    () => processed.time.map((value, index) => ({
+      x: value,
+      y: processed.seriesMap.deployment[index]
+    })),
+    [processed.time, processed.seriesMap.deployment]
+  );
+  const harvestPoints = useMemo8(
+    () => processed.time.map((value, index) => ({
+      x: value,
+      y: processed.seriesMap.harvest[index]
+    })),
+    [processed.time, processed.seriesMap.harvest]
+  );
+  const batteryPoints = useMemo8(
+    () => processed.time.map((value, index) => ({
+      x: value,
+      y: processed.seriesMap.battery[index]
+    })),
+    [processed.time, processed.seriesMap.battery]
+  );
+  const cursorIndex = findNearestIndex(processed.time, cursorTime);
+  const cursorPoint = cursorIndex >= 0 ? deploymentPoints[cursorIndex] : null;
+  const annotationDatasets = useMemo8(
+    () => createLineAnnotationDatasets(
+      showAnnotations ? annotations : void 0,
+      processed.time,
+      processed.seriesMap.deployment,
+      palette
+    ),
+    [showAnnotations, annotations, processed.time, processed.seriesMap.deployment, palette]
+  );
+  const chartData = useMemo8(
+    () => ({
+      datasets: [
+        {
+          label: "ERS Deployment (%)",
+          data: deploymentPoints,
+          borderColor: palette.danger,
+          backgroundColor: "rgba(255, 127, 159, 0.22)",
+          pointRadius: 0,
+          pointHitRadius: 8,
+          borderWidth: 2,
+          tension: 0.2,
+          fill: true
+        },
+        {
+          label: "ERS Harvest (%)",
+          data: harvestPoints,
+          borderColor: palette.accent,
+          backgroundColor: "rgba(110, 231, 183, 0.22)",
+          pointRadius: 0,
+          pointHitRadius: 8,
+          borderWidth: 2,
+          tension: 0.2,
+          fill: true
+        },
+        ...showBatteryLevel ? [
+          {
+            label: "Battery Level (%)",
+            data: batteryPoints,
+            yAxisID: "y1",
+            borderColor: palette.primary,
+            backgroundColor: "transparent",
+            borderDash: [6, 4],
+            pointRadius: 0,
+            borderWidth: 2,
+            tension: 0.2
+          }
+        ] : [],
+        ...showCursor && cursorPoint ? [
+          {
+            label: "Cursor",
+            data: [cursorPoint],
+            borderColor: palette.primary,
+            backgroundColor: palette.primary,
+            showLine: false,
+            pointRadius: 4
+          }
+        ] : [],
+        ...annotationDatasets
+      ]
+    }),
+    [
+      deploymentPoints,
+      harvestPoints,
+      showBatteryLevel,
+      batteryPoints,
+      showCursor,
+      cursorPoint,
+      annotationDatasets,
+      palette
+    ]
+  );
+  const options = useMemo8(() => {
+    const base = createLineOptions(palette, "ERS Power (%)", { min: 0, max: 100 });
+    return {
+      ...base,
+      scales: {
+        ...base.scales,
+        y: {
+          ...base.scales?.y,
+          min: 0,
+          max: 100
+        },
+        y1: {
+          type: "linear",
+          position: "right",
+          min: 0,
+          max: 100,
+          title: {
+            display: true,
+            text: "Battery (%)",
+            color: palette.mutedText
+          },
+          ticks: {
+            color: palette.mutedText
+          },
+          grid: {
+            drawOnChartArea: false
+          }
+        }
+      },
+      onHover: (_event, elements) => {
+        if (!onCursorTimeChange) {
+          return;
+        }
+        if (elements.length === 0) {
+          onCursorTimeChange(null);
+          return;
+        }
+        onCursorTimeChange(processed.time[elements[0].index] ?? null);
+      }
+    };
+  }, [palette, onCursorTimeChange, processed.time]);
+  const plugins = useMemo8(
+    () => [
+      ...showCursor ? [createCursorLinePlugin(cursorTime, palette.mutedText)] : [],
+      ...showAnnotations ? [createAnnotationMarkersPlugin(annotations, palette.grid, palette.mutedText)] : []
+    ],
+    [showCursor, cursorTime, palette.mutedText, showAnnotations, annotations, palette.grid]
+  );
+  return /* @__PURE__ */ jsx9(
+    TelemetryCard,
+    {
+      theme,
+      height,
+      className,
+      title,
+      styleTokens,
+      ariaLabel,
+      defaultAriaLabel: "Telemetry ERS energy chart",
+      children: /* @__PURE__ */ jsx9(
+        ClientChart,
+        {
+          type: "line",
+          data: chartData,
+          options,
+          plugins,
+          ariaLabel: ariaLabel ?? "ERS deployment, harvest, and battery chart"
+        }
+      )
+    }
+  );
+};
+
+// src/components/TyreStrategyTimeline.tsx
+import { useMemo as useMemo9 } from "react";
+
+// src/utils/tyres.ts
+var TYRE_COMPOUND_COLORS = {
+  soft: "#FF3333",
+  medium: "#FFC700",
+  hard: "#FFFFFF",
+  intermediate: "#47C747",
+  wet: "#3D9BE9"
+};
+
+// src/components/TyreStrategyTimeline.tsx
+import { jsx as jsx10, jsxs as jsxs3 } from "react/jsx-runtime";
+var TyreStrategyTimeline = ({
+  strategies,
+  totalLaps,
+  theme = "dark",
+  className,
+  styleTokens,
+  height = 36,
+  showLapNumbers = true,
+  title = "Tyre Strategy Timeline",
+  ariaLabel
+}) => {
+  const palette = useMemo9(() => resolveThemeTokens(theme, styleTokens), [theme, styleTokens]);
+  const lapMarkers = useMemo9(() => {
+    const markerCount = Math.min(8, Math.max(2, Math.floor(totalLaps / 5)));
+    return Array.from(
+      { length: markerCount + 1 },
+      (_, index) => Math.round(totalLaps * index / markerCount)
+    );
+  }, [totalLaps]);
+  return /* @__PURE__ */ jsx10(
+    TelemetryCard,
+    {
+      theme,
+      height: Math.max(220, strategies.length * (height + 12) + 92),
+      className,
+      title,
+      styleTokens,
+      ariaLabel,
+      defaultAriaLabel: "Tyre strategy timeline",
+      children: /* @__PURE__ */ jsxs3("div", { style: { display: "grid", gap: 10, height: "100%" }, children: [
+        showLapNumbers ? /* @__PURE__ */ jsx10(
+          "div",
+          {
+            style: {
+              position: "relative",
+              height: 20,
+              borderBottom: `1px solid ${palette.grid}`
+            },
+            children: lapMarkers.map((marker) => /* @__PURE__ */ jsxs3(
+              "span",
+              {
+                style: {
+                  position: "absolute",
+                  left: `${marker / totalLaps * 100}%`,
+                  transform: "translateX(-50%)",
+                  fontSize: 11,
+                  color: palette.mutedText
+                },
+                children: [
+                  "L",
+                  marker
+                ]
+              },
+              marker
+            ))
+          }
+        ) : null,
+        strategies.map((strategy) => /* @__PURE__ */ jsxs3("div", { style: { display: "grid", gridTemplateColumns: "84px 1fr", gap: 10 }, children: [
+          /* @__PURE__ */ jsx10(
+            "div",
+            {
+              style: {
+                color: strategy.color ?? palette.text,
+                fontWeight: 600,
+                fontSize: 12,
+                alignSelf: "center"
+              },
+              children: strategy.driver
+            }
+          ),
+          /* @__PURE__ */ jsx10(
+            "div",
+            {
+              style: {
+                position: "relative",
+                height,
+                borderRadius: 8,
+                border: `1px solid ${palette.border}`,
+                overflow: "hidden",
+                background: "rgba(148,163,184,0.06)"
+              },
+              children: strategy.stints.map((stint, index) => {
+                const start = Math.max(1, stint.startLap);
+                const end = Math.max(start, stint.endLap);
+                const left = (start - 1) / totalLaps * 100;
+                const width = (end - start + 1) / totalLaps * 100;
+                return /* @__PURE__ */ jsx10(
+                  "div",
+                  {
+                    style: {
+                      position: "absolute",
+                      top: 0,
+                      left: `${left}%`,
+                      width: `${width}%`,
+                      height: "100%",
+                      background: TYRE_COMPOUND_COLORS[stint.compound],
+                      color: stint.compound === "hard" ? "#111827" : "#ffffff",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      borderRight: `1px solid rgba(0,0,0,0.2)`
+                    },
+                    children: stint.label ?? stint.compound
+                  },
+                  `${strategy.driver}-${stint.compound}-${start}-${end}-${index}`
+                );
+              })
+            }
+          )
+        ] }, strategy.driver))
+      ] })
+    }
+  );
+};
+
+// src/components/GapChart.tsx
+import { useMemo as useMemo10 } from "react";
+import { jsx as jsx11 } from "react/jsx-runtime";
+var createDriverLabelPlugin = (showLabels, color) => ({
+  id: "f1-telemetry-gap-driver-labels",
+  afterDatasetsDraw: (chart) => {
+    if (!showLabels) {
+      return;
+    }
+    const { ctx } = chart;
+    ctx.save();
+    ctx.font = "11px system-ui, -apple-system, sans-serif";
+    ctx.fillStyle = color;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    chart.data.datasets.forEach((dataset, datasetIndex) => {
+      const meta = chart.getDatasetMeta(datasetIndex);
+      if (!meta || meta.hidden || meta.data.length === 0) {
+        return;
+      }
+      const abbreviation = (dataset.label ?? "").slice(0, 3).toUpperCase();
+      const point = meta.data[meta.data.length - 1];
+      if (!point) {
+        return;
+      }
+      ctx.fillText(abbreviation, point.x + 6, point.y);
+    });
+    ctx.restore();
+  }
+});
+var GapChart = ({
+  drivers,
+  referenceDriver,
+  invertAxis = true,
+  showDriverLabels = true,
+  theme = "dark",
+  height = 320,
+  className,
+  title = "Gap to Leader",
+  ariaLabel,
+  processing,
+  styleTokens,
+  showCursor = true,
+  cursorTime,
+  onCursorTimeChange,
+  annotations,
+  showAnnotations = true
+}) => {
+  const palette = useMemo10(() => resolveThemeTokens(theme, styleTokens), [theme, styleTokens]);
+  const processedDrivers = useMemo10(
+    () => drivers.map((driver) => {
+      const laps = driver.data.map((point) => point.lap);
+      const gaps = driver.data.map((point) => point.gap);
+      const processed = processSeriesData({
+        context: `GapChart.${driver.driver}`,
+        time: laps,
+        seriesMap: { gap: gaps },
+        processing
+      });
+      return {
+        ...driver,
+        laps: processed.time,
+        gaps: processed.seriesMap.gap
+      };
+    }),
+    [drivers, processing]
+  );
+  const reference = useMemo10(
+    () => processedDrivers.find((driver) => driver.driver === referenceDriver) ?? processedDrivers.find((driver) => driver.driver.toLowerCase().includes("leader")) ?? processedDrivers[0],
+    [processedDrivers, referenceDriver]
+  );
+  const referenceByLap = useMemo10(() => {
+    const map = /* @__PURE__ */ new Map();
+    if (!reference) {
+      return map;
+    }
+    reference.laps.forEach((lap, index) => map.set(lap, reference.gaps[index] ?? 0));
+    return map;
+  }, [reference]);
+  const datasets = useMemo10(
+    () => processedDrivers.map((driver, index) => {
+      const color = driver.color ?? [palette.primary, palette.accent, palette.danger, "#FFC700"][index % 4];
+      const points = driver.laps.map((lap, lapIndex) => ({
+        x: lap,
+        y: (driver.gaps[lapIndex] ?? 0) - (referenceByLap.get(lap) ?? 0)
+      }));
+      return {
+        label: driver.driver,
+        data: points,
+        borderColor: color,
+        backgroundColor: "transparent",
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHitRadius: 8,
+        tension: 0.2
+      };
+    }),
+    [processedDrivers, referenceByLap, palette]
+  );
+  const cursorSource = datasets[0]?.data ?? [];
+  const cursorIndex = findNearestIndex(
+    cursorSource.map((point) => point.x),
+    cursorTime
+  );
+  const cursorTimePoint = cursorIndex >= 0 ? cursorSource[cursorIndex] : null;
+  const annotationData = datasets[0]?.data ?? [];
+  const annotationDatasets = useMemo10(
+    () => createLineAnnotationDatasets(
+      showAnnotations ? annotations : void 0,
+      annotationData.map((point) => point.x),
+      annotationData.map((point) => point.y),
+      palette
+    ),
+    [showAnnotations, annotations, annotationData, palette]
+  );
+  const data = useMemo10(
+    () => ({
+      datasets: [
+        ...datasets,
+        ...showCursor && cursorTimePoint ? [
+          {
+            label: "Cursor",
+            data: [cursorTimePoint],
+            borderColor: palette.primary,
+            backgroundColor: palette.primary,
+            showLine: false,
+            pointRadius: 4
+          }
+        ] : [],
+        ...annotationDatasets
+      ]
+    }),
+    [datasets, showCursor, cursorTimePoint, palette, annotationDatasets]
+  );
+  const options = useMemo10(() => {
+    const base = createLineOptions(palette, "Gap to Leader (s)");
+    return {
+      ...base,
+      scales: {
+        ...base.scales,
+        x: {
+          ...base.scales?.x,
+          ticks: {
+            color: palette.mutedText,
+            precision: 0
+          },
+          title: {
+            display: true,
+            text: "Lap",
+            color: palette.mutedText
+          }
+        },
+        y: {
+          ...base.scales?.y,
+          reverse: invertAxis
+        }
+      },
+      onHover: (_event, elements) => {
+        if (!onCursorTimeChange) {
+          return;
+        }
+        if (elements.length === 0) {
+          onCursorTimeChange(null);
+          return;
+        }
+        const point = datasets[elements[0].datasetIndex]?.data[elements[0].index];
+        onCursorTimeChange(point?.x ?? null);
+      }
+    };
+  }, [palette, invertAxis, onCursorTimeChange, datasets]);
+  const plugins = useMemo10(
+    () => [
+      ...showCursor ? [createCursorLinePlugin(cursorTime, palette.mutedText)] : [],
+      ...showAnnotations ? [createAnnotationMarkersPlugin(annotations, palette.grid, palette.mutedText)] : [],
+      createDriverLabelPlugin(showDriverLabels, palette.text)
+    ],
+    [
+      showCursor,
+      cursorTime,
+      palette.mutedText,
+      showAnnotations,
+      annotations,
+      palette.grid,
+      showDriverLabels,
+      palette.text
+    ]
+  );
+  return /* @__PURE__ */ jsx11(
+    TelemetryCard,
+    {
+      theme,
+      height,
+      className,
+      title,
+      styleTokens,
+      ariaLabel,
+      defaultAriaLabel: "Telemetry gap to leader chart",
+      children: /* @__PURE__ */ jsx11(
+        ClientChart,
+        {
+          type: "line",
+          data,
+          options,
+          plugins,
+          ariaLabel: ariaLabel ?? "Gap to leader line chart"
+        }
+      )
+    }
+  );
+};
+
+// src/components/PositionChart.tsx
+import { useMemo as useMemo11 } from "react";
+import { jsx as jsx12 } from "react/jsx-runtime";
+var withAlpha = (color, alpha) => {
+  const hex = color.replace("#", "");
+  if (hex.length !== 6) {
+    return color;
+  }
+  const r = Number.parseInt(hex.slice(0, 2), 16);
+  const g = Number.parseInt(hex.slice(2, 4), 16);
+  const b = Number.parseInt(hex.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+var createPositionLabelsPlugin = (highlighted, enabled, color) => ({
+  id: "f1-telemetry-position-labels",
+  afterDatasetsDraw: (chart) => {
+    if (!enabled) {
+      return;
+    }
+    const { ctx } = chart;
+    ctx.save();
+    ctx.font = "11px system-ui, -apple-system, sans-serif";
+    ctx.fillStyle = color;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    chart.data.datasets.forEach((dataset, datasetIndex) => {
+      const label = dataset.label ?? "";
+      if (!highlighted.has(label)) {
+        return;
+      }
+      const meta = chart.getDatasetMeta(datasetIndex);
+      if (!meta || meta.hidden || meta.data.length === 0) {
+        return;
+      }
+      const point = meta.data[meta.data.length - 1];
+      if (!point) {
+        return;
+      }
+      ctx.fillText(label.slice(0, 3).toUpperCase(), point.x + 5, point.y);
+    });
+    ctx.restore();
+  }
+});
+var PositionChart = ({
+  drivers,
+  totalLaps,
+  highlightDrivers,
+  showDriverLabels = true,
+  theme = "dark",
+  height = 320,
+  className,
+  title = "Position Changes",
+  ariaLabel,
+  processing,
+  styleTokens,
+  showCursor = true,
+  cursorTime,
+  onCursorTimeChange,
+  annotations,
+  showAnnotations = true
+}) => {
+  const palette = useMemo11(() => resolveThemeTokens(theme, styleTokens), [theme, styleTokens]);
+  const highlighted = useMemo11(
+    () => new Set((highlightDrivers ?? []).map((driver) => driver.trim())),
+    [highlightDrivers]
+  );
+  const processedDrivers = useMemo11(
+    () => drivers.map((driver) => {
+      const laps = Array.from({ length: Math.min(driver.positions.length, totalLaps) }, (_, index) => index + 1);
+      const positions = driver.positions.slice(0, totalLaps);
+      const processed = processSeriesData({
+        context: `PositionChart.${driver.driver}`,
+        time: laps,
+        seriesMap: { position: positions },
+        processing
+      });
+      return {
+        ...driver,
+        laps: processed.time,
+        positions: processed.seriesMap.position
+      };
+    }),
+    [drivers, totalLaps, processing]
+  );
+  const datasets = useMemo11(
+    () => processedDrivers.map((driver, index) => {
+      const highlight = highlighted.size === 0 ? true : highlighted.has(driver.driver);
+      const color = driver.color ?? [palette.primary, palette.accent, palette.danger, "#FFC700"][index % 4];
+      const borderColor = highlight ? color : withAlpha(color, 0.5);
+      return {
+        label: driver.driver,
+        data: driver.laps.map((lap, lapIndex) => ({
+          x: lap,
+          y: Math.max(1, Math.round(driver.positions[lapIndex] ?? 20))
+        })),
+        borderColor,
+        backgroundColor: "transparent",
+        borderWidth: highlight ? 3 : 1.5,
+        pointRadius: highlight ? 2 : 0,
+        pointHoverRadius: highlight ? 4 : 0,
+        tension: 0,
+        stepped: "before"
+      };
+    }),
+    [processedDrivers, highlighted, palette]
+  );
+  const cursorSource = datasets[0]?.data ?? [];
+  const cursorIndex = findNearestIndex(
+    cursorSource.map((point) => point.x),
+    cursorTime
+  );
+  const cursorPoint = cursorIndex >= 0 ? cursorSource[cursorIndex] : null;
+  const annotationDatasets = useMemo11(
+    () => createLineAnnotationDatasets(
+      showAnnotations ? annotations : void 0,
+      cursorSource.map((point) => point.x),
+      cursorSource.map((point) => point.y),
+      palette
+    ),
+    [showAnnotations, annotations, cursorSource, palette]
+  );
+  const data = useMemo11(
+    () => ({
+      datasets: [
+        ...datasets,
+        ...showCursor && cursorPoint ? [
+          {
+            label: "Cursor",
+            data: [cursorPoint],
+            borderColor: palette.primary,
+            backgroundColor: palette.primary,
+            showLine: false,
+            pointRadius: 4
+          }
+        ] : [],
+        ...annotationDatasets
+      ]
+    }),
+    [datasets, showCursor, cursorPoint, palette, annotationDatasets]
+  );
+  const options = useMemo11(() => {
+    const maxPosition = Math.max(
+      20,
+      ...processedDrivers.map((driver) => Math.max(...driver.positions.map((position) => Math.round(position || 0)), 1))
+    );
+    const base = createLineOptions(palette, "Position", { min: 1, max: maxPosition });
+    return {
+      ...base,
+      scales: {
+        ...base.scales,
+        x: {
+          ...base.scales?.x,
+          min: 1,
+          max: totalLaps,
+          title: {
+            display: true,
+            text: "Lap",
+            color: palette.mutedText
+          },
+          ticks: {
+            color: palette.mutedText,
+            precision: 0
+          }
+        },
+        y: {
+          ...base.scales?.y,
+          reverse: true,
+          min: 1,
+          max: maxPosition,
+          ticks: {
+            color: palette.mutedText,
+            stepSize: 1
+          }
+        }
+      },
+      onHover: (_event, elements) => {
+        if (!onCursorTimeChange) {
+          return;
+        }
+        if (elements.length === 0) {
+          onCursorTimeChange(null);
+          return;
+        }
+        const point = datasets[elements[0].datasetIndex]?.data[elements[0].index];
+        onCursorTimeChange(point?.x ?? null);
+      }
+    };
+  }, [palette, processedDrivers, totalLaps, onCursorTimeChange, datasets]);
+  const plugins = useMemo11(
+    () => [
+      ...showCursor ? [createCursorLinePlugin(cursorTime, palette.mutedText)] : [],
+      ...showAnnotations ? [createAnnotationMarkersPlugin(annotations, palette.grid, palette.mutedText)] : [],
+      createPositionLabelsPlugin(highlighted, showDriverLabels, palette.text)
+    ],
+    [
+      showCursor,
+      cursorTime,
+      palette.mutedText,
+      showAnnotations,
+      annotations,
+      palette.grid,
+      highlighted,
+      showDriverLabels,
+      palette.text
+    ]
+  );
+  return /* @__PURE__ */ jsx12(
+    TelemetryCard,
+    {
+      theme,
+      height,
+      className,
+      title,
+      styleTokens,
+      ariaLabel,
+      defaultAriaLabel: "Telemetry position changes chart",
+      children: /* @__PURE__ */ jsx12(
+        ClientChart,
+        {
+          type: "line",
+          data,
+          options,
+          plugins,
+          ariaLabel: ariaLabel ?? "Race position change spaghetti chart"
+        }
+      )
+    }
+  );
+};
+
+// src/components/MiniSectors.tsx
+import { useMemo as useMemo12 } from "react";
+import { jsx as jsx13, jsxs as jsxs4 } from "react/jsx-runtime";
+var colorForSector = (mode, ratio, isOverallBest) => {
+  if (isOverallBest) {
+    return "#A855F7";
+  }
+  if (ratio <= 1) {
+    return "#22C55E";
+  }
+  if (ratio > 1.07) {
+    return "#F97316";
+  }
+  if (mode === "previous-lap" && ratio > 1.04) {
+    return "#EF4444";
+  }
+  return "#EAB308";
+};
+var MiniSectors = ({
+  drivers,
+  comparisonMode = "overall-best",
+  theme = "dark",
+  className,
+  styleTokens,
+  title = "Mini Sectors",
+  ariaLabel
+}) => {
+  const palette = useMemo12(() => resolveThemeTokens(theme, styleTokens), [theme, styleTokens]);
+  const sectors = useMemo12(
+    () => Array.from(new Set(drivers.flatMap((driver) => driver.sectors.map((sector) => sector.sector)))).sort(
+      (left, right) => left - right
+    ),
+    [drivers]
+  );
+  const overallBestBySector = useMemo12(() => {
+    const result = /* @__PURE__ */ new Map();
+    sectors.forEach((sector) => {
+      const best = Math.min(
+        ...drivers.map((driver) => driver.sectors.find((entry) => entry.sector === sector)?.time ?? Number.POSITIVE_INFINITY)
+      );
+      result.set(sector, best);
+    });
+    return result;
+  }, [drivers, sectors]);
+  return /* @__PURE__ */ jsx13(
+    TelemetryCard,
+    {
+      theme,
+      height: Math.max(220, drivers.length * 44 + 84),
+      className,
+      title,
+      styleTokens,
+      ariaLabel,
+      defaultAriaLabel: "Mini sectors comparison grid",
+      children: /* @__PURE__ */ jsx13("div", { style: { overflow: "auto", height: "100%" }, children: /* @__PURE__ */ jsxs4("table", { style: { width: "100%", borderCollapse: "separate", borderSpacing: 4 }, children: [
+        /* @__PURE__ */ jsx13("thead", { children: /* @__PURE__ */ jsxs4("tr", { children: [
+          /* @__PURE__ */ jsx13(
+            "th",
+            {
+              style: {
+                textAlign: "left",
+                color: palette.mutedText,
+                fontSize: 11,
+                padding: "4px 6px"
+              },
+              children: "Driver"
+            }
+          ),
+          sectors.map((sector) => /* @__PURE__ */ jsxs4(
+            "th",
+            {
+              style: {
+                textAlign: "center",
+                color: palette.mutedText,
+                fontSize: 11,
+                padding: "4px 6px"
+              },
+              children: [
+                "S",
+                sector
+              ]
+            },
+            sector
+          ))
+        ] }) }),
+        /* @__PURE__ */ jsx13("tbody", { children: drivers.map((driver) => {
+          const personalBest = Math.min(...driver.sectors.map((sector) => sector.time));
+          return /* @__PURE__ */ jsxs4("tr", { children: [
+            /* @__PURE__ */ jsx13(
+              "td",
+              {
+                style: {
+                  color: driver.color ?? palette.text,
+                  fontWeight: 600,
+                  fontSize: 12,
+                  padding: "6px"
+                },
+                children: driver.driver
+              }
+            ),
+            sectors.map((sector, sectorIndex) => {
+              const current = driver.sectors.find((entry) => entry.sector === sector)?.time;
+              if (current === void 0) {
+                return /* @__PURE__ */ jsx13("td", { children: /* @__PURE__ */ jsx13(
+                  "div",
+                  {
+                    style: {
+                      borderRadius: 6,
+                      border: `1px solid ${palette.border}`,
+                      height: 30
+                    }
+                  }
+                ) }, `${driver.driver}-${sector}`);
+              }
+              const previous = driver.sectors[sectorIndex - 1]?.time ?? current;
+              const baseline = comparisonMode === "previous-lap" ? previous : comparisonMode === "personal-best" ? personalBest : overallBestBySector.get(sector) ?? current;
+              const ratio = baseline > 0 ? current / baseline : 1;
+              const isOverallBest = current <= (overallBestBySector.get(sector) ?? current);
+              const cellColor = colorForSector(comparisonMode, ratio, isOverallBest);
+              return /* @__PURE__ */ jsx13("td", { children: /* @__PURE__ */ jsx13(
+                "div",
+                {
+                  style: {
+                    borderRadius: 6,
+                    minWidth: 54,
+                    height: 30,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: "#111827",
+                    background: cellColor
+                  },
+                  children: current.toFixed(3)
+                }
+              ) }, `${driver.driver}-${sector}`);
+            })
+          ] }, driver.driver);
+        }) })
+      ] }) })
+    }
+  );
+};
+
+// src/components/SpeedHeatmapTrackMap.tsx
+import { useMemo as useMemo13 } from "react";
+import { jsx as jsx14, jsxs as jsxs5 } from "react/jsx-runtime";
+var toRgb = (hexColor) => {
+  const hex = hexColor.replace("#", "");
+  if (hex.length !== 6) {
+    return [255, 255, 255];
+  }
+  return [
+    Number.parseInt(hex.slice(0, 2), 16),
+    Number.parseInt(hex.slice(2, 4), 16),
+    Number.parseInt(hex.slice(4, 6), 16)
+  ];
+};
+var mixColor = (left, right, t) => {
+  const [lr, lg, lb] = toRgb(left);
+  const [rr, rg, rb] = toRgb(right);
+  const blend = (a, b) => Math.round(a + (b - a) * t);
+  return `rgb(${blend(lr, rr)}, ${blend(lg, rg)}, ${blend(lb, rb)})`;
+};
+var colorFromScale = (value, min, max, scale) => {
+  if (max <= min) {
+    return scale.mid;
+  }
+  const normalized = (value - min) / (max - min);
+  if (normalized <= 0.5) {
+    return mixColor(scale.min, scale.mid, normalized / 0.5);
+  }
+  return mixColor(scale.mid, scale.max, (normalized - 0.5) / 0.5);
+};
+var SpeedHeatmapTrackMap = ({
+  x,
+  y,
+  speed,
+  time,
+  colorScale,
+  segmentSize = 5,
+  theme = "dark",
+  height = 380,
+  className,
+  title = "Speed Heatmap",
+  ariaLabel,
+  processing,
+  styleTokens,
+  showCursor = true,
+  cursorTime,
+  onCursorTimeChange,
+  annotations,
+  showAnnotations = true
+}) => {
+  const palette = useMemo13(() => resolveThemeTokens(theme, styleTokens), [theme, styleTokens]);
+  const scale = useMemo13(
+    () => ({
+      min: colorScale?.min ?? "#FF4444",
+      mid: colorScale?.mid ?? "#FFAA00",
+      max: colorScale?.max ?? "#00CC66"
+    }),
+    [colorScale]
+  );
+  const timeAxis = useMemo13(() => time ?? x.map((_, index) => index), [time, x]);
+  const processed = useMemo13(
+    () => processSeriesData({
+      context: "SpeedHeatmapTrackMap",
+      time: timeAxis,
+      seriesMap: { x, y, speed },
+      processing
+    }),
+    [timeAxis, x, y, speed, processing]
+  );
+  const points = useMemo13(
+    () => processed.seriesMap.x.map((xValue, index) => ({
+      x: xValue,
+      y: processed.seriesMap.y[index]
+    })),
+    [processed.seriesMap.x, processed.seriesMap.y]
+  );
+  const speedMin = Math.min(...processed.seriesMap.speed, 0);
+  const speedMax = Math.max(...processed.seriesMap.speed, 0);
+  const segmentDatasets = useMemo13(() => {
+    const datasets = [];
+    const chunk = Math.max(2, segmentSize);
+    for (let index = 0; index < points.length - 1; index += chunk) {
+      const end = Math.min(index + chunk, points.length - 1);
+      const segmentPoints = points.slice(index, end + 1);
+      if (segmentPoints.length < 2) {
+        continue;
+      }
+      const segmentSpeeds = processed.seriesMap.speed.slice(index, end + 1);
+      const avgSpeed = segmentSpeeds.reduce((sum, value) => sum + value, 0) / Math.max(segmentSpeeds.length, 1);
+      const color = colorFromScale(avgSpeed, speedMin, speedMax, scale);
+      datasets.push({
+        label: `Segment ${index + 1}`,
+        data: segmentPoints,
+        showLine: true,
+        borderColor: color,
+        backgroundColor: color,
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0.1
+      });
+    }
+    return datasets;
+  }, [points, processed.seriesMap.speed, segmentSize, scale, speedMin, speedMax]);
+  const cursorIndex = findNearestIndex(processed.time, cursorTime);
+  const cursorPoint = cursorIndex >= 0 ? points[cursorIndex] : null;
+  const cursorSpeed = cursorIndex >= 0 ? processed.seriesMap.speed[cursorIndex] : null;
+  const annotationDatasets = useMemo13(
+    () => createTrackAnnotationDatasets(
+      showAnnotations ? annotations : void 0,
+      points,
+      processed.time,
+      palette
+    ),
+    [showAnnotations, annotations, points, processed.time, palette]
+  );
+  const data = useMemo13(
+    () => ({
+      datasets: [
+        ...segmentDatasets,
+        ...showCursor && cursorPoint ? [
+          {
+            label: cursorSpeed !== null ? `Cursor (${cursorSpeed.toFixed(1)} km/h)` : "Cursor",
+            data: [cursorPoint],
+            showLine: false,
+            borderColor: palette.primary,
+            backgroundColor: palette.primary,
+            pointRadius: 5
+          }
+        ] : [],
+        ...annotationDatasets
+      ]
+    }),
+    [segmentDatasets, showCursor, cursorPoint, cursorSpeed, palette, annotationDatasets]
+  );
+  const options = useMemo13(() => {
+    const base = createTrackMapOptions(palette);
+    return {
+      ...base,
+      plugins: {
+        ...base.plugins,
+        legend: {
+          ...base.plugins?.legend,
+          display: false
+        }
+      },
+      onHover: (_event, elements) => {
+        if (!onCursorTimeChange) {
+          return;
+        }
+        if (elements.length === 0) {
+          onCursorTimeChange(null);
+          return;
+        }
+        const hovered = data.datasets[elements[0].datasetIndex]?.data;
+        const point = hovered?.[elements[0].index];
+        if (!point) {
+          return;
+        }
+        const nearest = findNearestIndex(
+          points.map((candidate) => candidate.x + candidate.y),
+          point.x + point.y
+        );
+        onCursorTimeChange(processed.time[nearest] ?? null);
+      }
+    };
+  }, [palette, onCursorTimeChange, data.datasets, points, processed.time]);
+  return /* @__PURE__ */ jsx14(
+    TelemetryCard,
+    {
+      theme,
+      height,
+      className,
+      title,
+      styleTokens,
+      ariaLabel,
+      defaultAriaLabel: "Telemetry speed heatmap track map",
+      children: /* @__PURE__ */ jsxs5("div", { style: { display: "flex", flexDirection: "column", height: "100%" }, children: [
+        /* @__PURE__ */ jsx14("div", { style: { flex: 1 }, children: /* @__PURE__ */ jsx14(
+          ClientChart,
+          {
+            type: "scatter",
+            data,
+            options,
+            ariaLabel: ariaLabel ?? "Track map with speed heatmap"
+          }
+        ) }),
+        /* @__PURE__ */ jsxs5("div", { style: { marginTop: 8 }, children: [
+          /* @__PURE__ */ jsx14(
+            "div",
+            {
+              style: {
+                height: 10,
+                borderRadius: 999,
+                background: `linear-gradient(90deg, ${scale.min} 0%, ${scale.mid} 50%, ${scale.max} 100%)`
+              }
+            }
+          ),
+          /* @__PURE__ */ jsxs5(
+            "div",
+            {
+              style: {
+                marginTop: 4,
+                display: "flex",
+                justifyContent: "space-between",
+                fontSize: 11,
+                color: palette.mutedText
+              },
+              children: [
+                /* @__PURE__ */ jsx14("span", { children: "Slow" }),
+                /* @__PURE__ */ jsx14("span", { children: "Fast" })
+              ]
+            }
+          )
+        ] })
+      ] })
+    }
+  );
+};
+
+// src/components/RadarChart.tsx
+import { useMemo as useMemo14 } from "react";
+import { jsx as jsx15 } from "react/jsx-runtime";
+var hexToRgba = (hexColor, opacity) => {
+  const hex = hexColor.replace("#", "");
+  if (hex.length !== 6) {
+    return hexColor;
+  }
+  const r = Number.parseInt(hex.slice(0, 2), 16);
+  const g = Number.parseInt(hex.slice(2, 4), 16);
+  const b = Number.parseInt(hex.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+};
+var RadarChart = ({
+  drivers,
+  metricLabels,
+  theme = "dark",
+  height = 380,
+  className,
+  styleTokens,
+  ariaLabel,
+  fillOpacity = 0.2,
+  title = "Driver Comparison"
+}) => {
+  const palette = useMemo14(() => resolveThemeTokens(theme, styleTokens), [theme, styleTokens]);
+  const keys = useMemo14(() => {
+    const allKeys = /* @__PURE__ */ new Set();
+    drivers.slice(0, 4).forEach((driver) => {
+      Object.keys(driver.metrics).forEach((key) => allKeys.add(key));
+    });
+    return Array.from(allKeys);
+  }, [drivers]);
+  const labels = useMemo14(
+    () => keys.map((key) => metricLabels?.[key] ?? key),
+    [keys, metricLabels]
+  );
+  const data = useMemo14(
+    () => ({
+      labels,
+      datasets: drivers.slice(0, 4).map((driver, index) => {
+        const borderColor = driver.color ?? [palette.primary, palette.accent, palette.danger, "#FFC700"][index % 4];
+        return {
+          label: driver.driver,
+          data: keys.map((key) => driver.metrics[key] ?? 0),
+          borderColor,
+          backgroundColor: hexToRgba(borderColor, fillOpacity),
+          borderWidth: 2,
+          pointRadius: 3,
+          pointBackgroundColor: borderColor
+        };
+      })
+    }),
+    [labels, drivers, keys, fillOpacity, palette]
+  );
+  const options = useMemo14(
+    () => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        r: {
+          suggestedMin: 0,
+          suggestedMax: 100,
+          angleLines: {
+            color: palette.grid
+          },
+          grid: {
+            color: palette.grid
+          },
+          pointLabels: {
+            color: palette.text
+          },
+          ticks: {
+            color: palette.mutedText,
+            backdropColor: "transparent"
+          }
+        }
+      },
+      plugins: {
+        legend: {
+          labels: {
+            color: palette.text
+          }
+        }
+      }
+    }),
+    [palette]
+  );
+  return /* @__PURE__ */ jsx15(
+    TelemetryCard,
+    {
+      theme,
+      height,
+      className,
+      title,
+      styleTokens,
+      ariaLabel,
+      defaultAriaLabel: "Driver radar comparison chart",
+      children: /* @__PURE__ */ jsx15(
+        ClientChart,
+        {
+          type: "radar",
+          data,
+          options,
+          ariaLabel: ariaLabel ?? "Driver radar metrics chart"
+        }
+      )
+    }
+  );
+};
+
+// src/components/PitStopTimeline.tsx
+import { useMemo as useMemo15 } from "react";
+import { jsx as jsx16, jsxs as jsxs6 } from "react/jsx-runtime";
+var PitStopTimeline = ({
+  drivers,
+  totalLaps,
+  theme = "dark",
+  className,
+  styleTokens,
+  showDurations = true,
+  highlightSlow = 5,
+  title = "Pit Stop Timeline",
+  ariaLabel
+}) => {
+  const palette = useMemo15(() => resolveThemeTokens(theme, styleTokens), [theme, styleTokens]);
+  const lapMarkers = useMemo15(() => {
+    const markerCount = Math.min(8, Math.max(2, Math.floor(totalLaps / 5)));
+    return Array.from(
+      { length: markerCount + 1 },
+      (_, index) => Math.round(totalLaps * index / markerCount)
+    );
+  }, [totalLaps]);
+  const maxDuration = useMemo15(
+    () => Math.max(...drivers.flatMap((driver) => driver.stops.map((stop) => stop.duration)), highlightSlow, 5),
+    [drivers, highlightSlow]
+  );
+  return /* @__PURE__ */ jsx16(
+    TelemetryCard,
+    {
+      theme,
+      height: Math.max(220, drivers.length * 52 + 84),
+      className,
+      title,
+      styleTokens,
+      ariaLabel,
+      defaultAriaLabel: "Pit stop timeline",
+      children: /* @__PURE__ */ jsxs6("div", { style: { display: "grid", gap: 10, height: "100%" }, children: [
+        /* @__PURE__ */ jsx16(
+          "div",
+          {
+            style: {
+              position: "relative",
+              height: 20,
+              borderBottom: `1px solid ${palette.grid}`
+            },
+            children: lapMarkers.map((marker) => /* @__PURE__ */ jsxs6(
+              "span",
+              {
+                style: {
+                  position: "absolute",
+                  left: `${marker / totalLaps * 100}%`,
+                  transform: "translateX(-50%)",
+                  fontSize: 11,
+                  color: palette.mutedText
+                },
+                children: [
+                  "L",
+                  marker
+                ]
+              },
+              marker
+            ))
+          }
+        ),
+        drivers.map((driver) => /* @__PURE__ */ jsxs6("div", { style: { display: "grid", gridTemplateColumns: "84px 1fr", gap: 10 }, children: [
+          /* @__PURE__ */ jsx16(
+            "div",
+            {
+              style: {
+                color: driver.color ?? palette.text,
+                fontWeight: 600,
+                fontSize: 12,
+                alignSelf: "center"
+              },
+              children: driver.driver
+            }
+          ),
+          /* @__PURE__ */ jsx16(
+            "div",
+            {
+              style: {
+                position: "relative",
+                height: 40,
+                borderRadius: 8,
+                border: `1px solid ${palette.border}`,
+                background: "rgba(148,163,184,0.05)"
+              },
+              children: driver.stops.map((stop, index) => {
+                const left = stop.lap / totalLaps * 100;
+                const size = 12 + Math.max(0, stop.duration - 1.8) / maxDuration * 18;
+                const slow = stop.duration > highlightSlow;
+                return /* @__PURE__ */ jsxs6(
+                  "div",
+                  {
+                    style: {
+                      position: "absolute",
+                      left: `${left}%`,
+                      top: "50%",
+                      transform: "translate(-50%, -50%)"
+                    },
+                    children: [
+                      showDurations ? /* @__PURE__ */ jsxs6(
+                        "span",
+                        {
+                          style: {
+                            position: "absolute",
+                            top: -16,
+                            left: "50%",
+                            transform: "translateX(-50%)",
+                            fontSize: 10,
+                            color: palette.mutedText,
+                            whiteSpace: "nowrap"
+                          },
+                          children: [
+                            stop.duration.toFixed(1),
+                            "s"
+                          ]
+                        }
+                      ) : null,
+                      /* @__PURE__ */ jsx16(
+                        "div",
+                        {
+                          style: {
+                            width: size,
+                            height: size,
+                            transform: "rotate(45deg)",
+                            borderRadius: 3,
+                            background: driver.color ?? palette.primarySoft,
+                            border: `2px solid ${slow ? palette.danger : palette.border}`,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center"
+                          },
+                          children: /* @__PURE__ */ jsx16(
+                            "span",
+                            {
+                              style: {
+                                width: 7,
+                                height: 7,
+                                borderRadius: 999,
+                                background: stop.tyreCompoundOut ? TYRE_COMPOUND_COLORS[stop.tyreCompoundOut] : palette.accent,
+                                transform: "rotate(-45deg)",
+                                border: "1px solid rgba(0,0,0,0.5)"
+                              }
+                            }
+                          )
+                        }
+                      )
+                    ]
+                  },
+                  `${driver.driver}-${stop.lap}-${index}`
+                );
+              })
+            }
+          )
+        ] }, driver.driver))
+      ] })
+    }
+  );
+};
+
+// src/components/WeatherWidget.tsx
+import { useMemo as useMemo16 } from "react";
+import { jsx as jsx17, jsxs as jsxs7 } from "react/jsx-runtime";
+var DEFAULT_METRICS = [
+  "airTemp",
+  "trackTemp",
+  "humidity",
+  "windSpeed",
+  "rainfall"
+];
+var toCompass = (degrees) => {
+  if (degrees === void 0 || !Number.isFinite(degrees)) {
+    return "--";
+  }
+  const directions = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+  const index = Math.round((degrees % 360 + 360) % 360 / 45) % 8;
+  return directions[index];
+};
+var rainfallStatus = (value) => {
+  if (value <= 0) {
+    return "Dry";
+  }
+  if (value < 0.7) {
+    return "Light Rain";
+  }
+  return "Heavy Rain";
+};
+var WeatherWidget = ({
+  data,
+  showMetrics,
+  compactMode = false,
+  theme = "dark",
+  height = 320,
+  className,
+  title = "Weather Conditions",
+  ariaLabel,
+  processing,
+  styleTokens,
+  showCursor = true,
+  cursorTime,
+  onCursorTimeChange,
+  annotations,
+  showAnnotations = true
+}) => {
+  const palette = useMemo16(() => resolveThemeTokens(theme, styleTokens), [theme, styleTokens]);
+  const metrics = showMetrics ?? DEFAULT_METRICS;
+  const processed = useMemo16(
+    () => processSeriesData({
+      context: "WeatherWidget",
+      time: data.map((point) => point.time),
+      seriesMap: {
+        airTemp: data.map((point) => point.airTemp ?? 0),
+        trackTemp: data.map((point) => point.trackTemp ?? 0),
+        humidity: data.map((point) => point.humidity ?? 0),
+        windSpeed: data.map((point) => point.windSpeed ?? 0),
+        rainfall: data.map((point) => point.rainfall ?? 0)
+      },
+      processing
+    }),
+    [data, processing]
+  );
+  const cursorIndex = findNearestIndex(processed.time, cursorTime);
+  const cursorPoint = cursorIndex >= 0 ? {
+    x: processed.time[cursorIndex],
+    y: processed.seriesMap.airTemp[cursorIndex]
+  } : null;
+  const activeIndex = cursorIndex >= 0 ? cursorIndex : processed.time.length - 1;
+  const currentValues = {
+    air: processed.seriesMap.airTemp[activeIndex] ?? 0,
+    track: processed.seriesMap.trackTemp[activeIndex] ?? 0,
+    humidity: processed.seriesMap.humidity[activeIndex] ?? 0,
+    wind: processed.seriesMap.windSpeed[activeIndex] ?? 0,
+    rainfall: processed.seriesMap.rainfall[activeIndex] ?? 0,
+    windDirection: data[activeIndex]?.windDirection
+  };
+  if (compactMode) {
+    return /* @__PURE__ */ jsx17(
+      TelemetryCard,
+      {
+        theme,
+        height: height < 200 ? 200 : height,
+        className,
+        title,
+        styleTokens,
+        ariaLabel,
+        defaultAriaLabel: "Weather compact widget",
+        children: /* @__PURE__ */ jsxs7(
+          "div",
+          {
+            style: {
+              display: "grid",
+              gap: 8,
+              color: palette.text,
+              fontSize: 14
+            },
+            children: [
+              /* @__PURE__ */ jsxs7("div", { children: [
+                "\u{1F321} Air: ",
+                currentValues.air.toFixed(1),
+                "\xB0C / Track: ",
+                currentValues.track.toFixed(1),
+                "\xB0C"
+              ] }),
+              /* @__PURE__ */ jsxs7("div", { children: [
+                "\u{1F4A7} Humidity: ",
+                currentValues.humidity.toFixed(0),
+                "%"
+              ] }),
+              /* @__PURE__ */ jsxs7("div", { children: [
+                "\u{1F4A8} Wind: ",
+                currentValues.wind.toFixed(1),
+                " km/h ",
+                toCompass(currentValues.windDirection)
+              ] }),
+              /* @__PURE__ */ jsxs7("div", { children: [
+                "\u{1F327} ",
+                rainfallStatus(currentValues.rainfall)
+              ] })
+            ]
+          }
+        )
+      }
+    );
+  }
+  const airPoints = processed.time.map((time, index) => ({ x: time, y: processed.seriesMap.airTemp[index] }));
+  const trackPoints = processed.time.map((time, index) => ({ x: time, y: processed.seriesMap.trackTemp[index] }));
+  const humidityPoints = processed.time.map((time, index) => ({ x: time, y: processed.seriesMap.humidity[index] }));
+  const windPoints = processed.time.map((time, index) => ({ x: time, y: processed.seriesMap.windSpeed[index] }));
+  const rainfallBars = processed.time.map((time, index) => ({ x: time, y: processed.seriesMap.rainfall[index] }));
+  const annotationDatasets = useMemo16(
+    () => createLineAnnotationDatasets(
+      showAnnotations ? annotations : void 0,
+      processed.time,
+      processed.seriesMap.airTemp,
+      palette
+    ),
+    [showAnnotations, annotations, processed.time, processed.seriesMap.airTemp, palette]
+  );
+  const chartData = useMemo16(
+    () => ({
+      datasets: [
+        ...metrics.includes("airTemp") ? [
+          {
+            label: "Air Temp (\xB0C)",
+            data: airPoints,
+            borderColor: palette.danger,
+            backgroundColor: "rgba(255, 127, 159, 0.16)",
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0.2
+          }
+        ] : [],
+        ...metrics.includes("trackTemp") ? [
+          {
+            label: "Track Temp (\xB0C)",
+            data: trackPoints,
+            borderColor: "#FF8A00",
+            backgroundColor: "rgba(255, 138, 0, 0.16)",
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0.2
+          }
+        ] : [],
+        ...metrics.includes("humidity") ? [
+          {
+            label: "Humidity (%)",
+            data: humidityPoints,
+            yAxisID: "y1",
+            borderColor: palette.primary,
+            backgroundColor: "transparent",
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0.2
+          }
+        ] : [],
+        ...metrics.includes("windSpeed") ? [
+          {
+            label: "Wind Speed (km/h)",
+            data: windPoints,
+            yAxisID: "y2",
+            borderColor: palette.accent,
+            backgroundColor: "transparent",
+            borderWidth: 1.5,
+            pointRadius: 0,
+            tension: 0.2
+          }
+        ] : [],
+        ...metrics.includes("rainfall") ? [
+          {
+            label: "Rainfall",
+            data: rainfallBars,
+            yAxisID: "y2",
+            borderColor: "#3D9BE9",
+            backgroundColor: "rgba(61, 155, 233, 0.25)",
+            borderWidth: 4,
+            pointRadius: 0,
+            stepped: "before",
+            fill: true,
+            tension: 0
+          }
+        ] : [],
+        ...showCursor && cursorPoint ? [
+          {
+            label: "Cursor",
+            data: [cursorPoint],
+            borderColor: palette.primary,
+            backgroundColor: palette.primary,
+            showLine: false,
+            pointRadius: 4
+          }
+        ] : [],
+        ...annotationDatasets
+      ]
+    }),
+    [
+      metrics,
+      airPoints,
+      trackPoints,
+      humidityPoints,
+      windPoints,
+      rainfallBars,
+      showCursor,
+      cursorPoint,
+      annotationDatasets,
+      palette
+    ]
+  );
+  const options = useMemo16(() => {
+    const base = createLineOptions(palette, "Temperature (\xB0C)");
+    return {
+      ...base,
+      scales: {
+        ...base.scales,
+        y: {
+          ...base.scales?.y,
+          title: {
+            display: true,
+            text: "Temperature (\xB0C)",
+            color: palette.mutedText
+          }
+        },
+        y1: {
+          type: "linear",
+          position: "right",
+          min: 0,
+          max: 100,
+          title: {
+            display: true,
+            text: "Humidity (%)",
+            color: palette.mutedText
+          },
+          ticks: {
+            color: palette.mutedText
+          },
+          grid: {
+            drawOnChartArea: false
+          }
+        },
+        y2: {
+          type: "linear",
+          position: "right",
+          offset: true,
+          min: 0,
+          title: {
+            display: true,
+            text: "Wind / Rain",
+            color: palette.mutedText
+          },
+          ticks: {
+            color: palette.mutedText
+          },
+          grid: {
+            drawOnChartArea: false
+          }
+        }
+      },
+      onHover: (_event, elements) => {
+        if (!onCursorTimeChange) {
+          return;
+        }
+        if (elements.length === 0) {
+          onCursorTimeChange(null);
+          return;
+        }
+        onCursorTimeChange(processed.time[elements[0].index] ?? null);
+      }
+    };
+  }, [palette, onCursorTimeChange, processed.time]);
+  const plugins = useMemo16(
+    () => [
+      ...showCursor ? [createCursorLinePlugin(cursorTime, palette.mutedText)] : [],
+      ...showAnnotations ? [createAnnotationMarkersPlugin(annotations, palette.grid, palette.mutedText)] : []
+    ],
+    [showCursor, cursorTime, palette.mutedText, showAnnotations, annotations, palette.grid]
+  );
+  return /* @__PURE__ */ jsx17(
+    TelemetryCard,
+    {
+      theme,
+      height,
+      className,
+      title,
+      styleTokens,
+      ariaLabel,
+      defaultAriaLabel: "Weather conditions widget",
+      children: /* @__PURE__ */ jsx17(
+        ClientChart,
+        {
+          type: "line",
+          data: chartData,
+          options,
+          plugins,
+          ariaLabel: ariaLabel ?? "Weather multi-metric chart"
+        }
+      )
+    }
+  );
+};
+
 // src/utils/formatTelemetry.ts
 var TIME_KEYS = ["time", "timestamp", "t", "elapsed", "elapsedTime"];
 var SPEED_KEYS = ["speed", "velocity", "v"];
@@ -1801,15 +3729,26 @@ var fromCsvTelemetry = (csv, options = {}) => {
   return formatTelemetry(points);
 };
 export {
+  EnergyChart,
+  GapChart,
+  GearChart,
   LapComparisonChart,
+  MiniSectors,
+  PitStopTimeline,
+  PositionChart,
+  RadarChart,
   SpeedChart,
+  SpeedHeatmapTrackMap,
   TelemetryDashboard,
   ThrottleBrakeChart,
   TrackMap,
+  TyreStrategyTimeline,
+  WeatherWidget,
   clearTelemetryPanels,
   createLineAnnotationDatasets,
   createTelemetryCssVariables,
   createTrackAnnotationDataset,
+  createTrackAnnotationDatasets,
   findNearestIndex,
   formatTelemetry,
   fromCsvTelemetry,
