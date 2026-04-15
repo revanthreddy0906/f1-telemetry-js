@@ -1,4 +1,4 @@
-# f1-telemetry-js
+# @revanthreddy0906/f1-telemetry-js
 
 Reusable React + TypeScript component library for Formula 1 telemetry visualization.
 
@@ -17,13 +17,13 @@ Reusable React + TypeScript component library for Formula 1 telemetry visualizat
 ## Installation
 
 ```bash
-npm install f1-telemetry-js chart.js react-chartjs-2
+npm install @revanthreddy0906/f1-telemetry-js chart.js react-chartjs-2
 ```
 
 ## Quick usage
 
 ```tsx
-import { TelemetryDashboard, fromCsvTelemetry } from "f1-telemetry-js";
+import { TelemetryDashboard, fromCsvTelemetry } from "@revanthreddy0906/f1-telemetry-js";
 
 const telemetry = fromCsvTelemetry(`time,speed,throttle,brake,x,y
 0,122,28,0,12,8
@@ -50,7 +50,7 @@ export function App() {
 ## Adapters
 
 ```ts
-import { fromFastF1Telemetry, fromOpenF1Telemetry, fromCsvTelemetry } from "f1-telemetry-js";
+import { fromFastF1Telemetry, fromOpenF1Telemetry, fromCsvTelemetry } from "@revanthreddy0906/f1-telemetry-js";
 
 const telemetryA = fromFastF1Telemetry(fastF1Payload);
 const telemetryB = fromOpenF1Telemetry(openF1Payload);
@@ -60,7 +60,7 @@ const telemetryC = fromCsvTelemetry(csvText);
 ## Plugin extension API
 
 ```ts
-import { registerTelemetryPanel } from "f1-telemetry-js";
+import { registerTelemetryPanel } from "@revanthreddy0906/f1-telemetry-js";
 
 registerTelemetryPanel({
   id: "custom-energy-panel",

@@ -1,4 +1,4 @@
-import { TelemetryDashboard, fromCsvTelemetry } from "f1-telemetry-js";
+import { TelemetryDashboard, fromCsvTelemetry } from "@revanthreddy0906/f1-telemetry-js";
 
 const csv = `time,speed,throttle,brake,x,y
 0,125,30,0,10,8

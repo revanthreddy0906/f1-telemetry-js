@@ -1,6 +1,6 @@
 "use client";
 
-import { TelemetryDashboard, fromOpenF1Telemetry } from "f1-telemetry-js";
+import { TelemetryDashboard, fromOpenF1Telemetry } from "@revanthreddy0906/f1-telemetry-js";
 
 const telemetry = fromOpenF1Telemetry(
   Array.from({ length: 200 }, (_, index) => {
