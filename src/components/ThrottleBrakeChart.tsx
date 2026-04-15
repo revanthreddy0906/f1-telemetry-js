@@ -1,14 +1,11 @@
 import { useMemo } from "react";
-import { Line } from "react-chartjs-2";
-import {
-  createLineOptions,
-  getCardStyle,
-  getTitleStyle,
-  resolveThemeTokens
-} from "./chartTheme";
+import { createLineOptions, resolveThemeTokens } from "./chartTheme";
 import type { ThrottleBrakeChartProps } from "../types/telemetry";
 import { findNearestIndex, processSeriesData } from "../utils/processing";
-import { createCursorLinePlugin } from "../utils/plugins";
+import { createAnnotationMarkersPlugin, createCursorLinePlugin } from "../utils/plugins";
+import { createLineAnnotationDatasets } from "../utils/annotations";
+import { TelemetryCard } from "./TelemetryCard";
+import { ClientChart } from "./ClientChart";
 import "../utils/chartSetup";
 
 export const ThrottleBrakeChart = ({
@@ -19,11 +16,14 @@ export const ThrottleBrakeChart = ({
   height = 320,
   className,
   title = "Throttle & Brake",
+  ariaLabel,
   processing,
   styleTokens,
   showCursor = true,
   cursorTime,
-  onCursorTimeChange
+  onCursorTimeChange,
+  annotations,
+  showAnnotations = true
 }: ThrottleBrakeChartProps) => {
   const palette = useMemo(() => resolveThemeTokens(theme, styleTokens), [theme, styleTokens]);
 
@@ -65,6 +65,31 @@ export const ThrottleBrakeChart = ({
     cursorIndex >= 0
       ? { x: processed.time[cursorIndex], y: processed.seriesMap.brake[cursorIndex] }
       : null;
+
+  const annotationDatasets = useMemo(
+    () => [
+      ...createLineAnnotationDatasets(
+        showAnnotations ? annotations : undefined,
+        processed.time,
+        processed.seriesMap.throttle,
+        palette
+      ),
+      ...createLineAnnotationDatasets(
+        showAnnotations ? annotations : undefined,
+        processed.time,
+        processed.seriesMap.brake,
+        palette
+      )
+    ],
+    [
+      showAnnotations,
+      annotations,
+      processed.time,
+      processed.seriesMap.throttle,
+      processed.seriesMap.brake,
+      palette
+    ]
+  );
 
   const chartData = useMemo(
     () => ({
@@ -112,10 +137,11 @@ export const ThrottleBrakeChart = ({
                 pointRadius: 4
               }
             ]
-          : [])
+          : []),
+        ...annotationDatasets
       ]
     }),
-    [throttlePoints, brakePoints, palette, cursorThrottle, cursorBrake, showCursor]
+    [throttlePoints, brakePoints, palette, cursorThrottle, cursorBrake, showCursor, annotationDatasets]
   );
 
   const options = useMemo(() => {
@@ -138,16 +164,32 @@ export const ThrottleBrakeChart = ({
   }, [palette, onCursorTimeChange, processed.time]);
 
   const plugins = useMemo(
-    () => (showCursor ? [createCursorLinePlugin(cursorTime, palette.mutedText)] : []),
-    [showCursor, cursorTime, palette.mutedText]
+    () => [
+      ...(showCursor ? [createCursorLinePlugin(cursorTime, palette.mutedText)] : []),
+      ...(showAnnotations
+        ? [createAnnotationMarkersPlugin(annotations, palette.grid, palette.mutedText)]
+        : [])
+    ],
+    [showCursor, cursorTime, palette.mutedText, showAnnotations, annotations, palette.grid]
   );
 
   return (
-    <div className={className} style={getCardStyle(theme, height, styleTokens)}>
-      <p style={getTitleStyle(theme, styleTokens)}>{title}</p>
-      <div style={{ height: "calc(100% - 26px)" }}>
-        <Line data={chartData} options={options} plugins={plugins} />
-      </div>
-    </div>
+    <TelemetryCard
+      theme={theme}
+      height={height}
+      className={className}
+      title={title}
+      styleTokens={styleTokens}
+      ariaLabel={ariaLabel}
+      defaultAriaLabel="Telemetry throttle and brake chart"
+    >
+      <ClientChart
+        type="line"
+        data={chartData}
+        options={options}
+        plugins={plugins}
+        ariaLabel={ariaLabel ?? "Throttle and brake line chart"}
+      />
+    </TelemetryCard>
   );
 };

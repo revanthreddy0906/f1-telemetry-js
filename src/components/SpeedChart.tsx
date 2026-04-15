@@ -1,14 +1,11 @@
 import { useMemo } from "react";
-import { Line } from "react-chartjs-2";
-import {
-  createLineOptions,
-  getCardStyle,
-  getTitleStyle,
-  resolveThemeTokens
-} from "./chartTheme";
+import { createLineOptions, resolveThemeTokens } from "./chartTheme";
 import type { SpeedChartProps } from "../types/telemetry";
 import { findNearestIndex, processSeriesData } from "../utils/processing";
-import { createCursorLinePlugin } from "../utils/plugins";
+import { createAnnotationMarkersPlugin, createCursorLinePlugin } from "../utils/plugins";
+import { createLineAnnotationDatasets } from "../utils/annotations";
+import { TelemetryCard } from "./TelemetryCard";
+import { ClientChart } from "./ClientChart";
 import "../utils/chartSetup";
 
 export const SpeedChart = (props: SpeedChartProps) => {
@@ -17,11 +14,14 @@ export const SpeedChart = (props: SpeedChartProps) => {
     height = 320,
     className,
     title = "Speed vs Time",
+    ariaLabel,
     processing,
     styleTokens,
     showCursor = true,
     cursorTime,
-    onCursorTimeChange
+    onCursorTimeChange,
+    annotations,
+    showAnnotations = true
   } = props;
 
   const rawTime = props.data?.time ?? props.time ?? [];
@@ -58,6 +58,17 @@ export const SpeedChart = (props: SpeedChartProps) => {
         }
       : null;
 
+  const annotationDatasets = useMemo(
+    () =>
+      createLineAnnotationDatasets(
+        showAnnotations ? annotations : undefined,
+        processed.time,
+        processed.seriesMap.speed,
+        palette
+      ),
+    [showAnnotations, annotations, processed.time, processed.seriesMap.speed, palette]
+  );
+
   const chartData = useMemo(
     () => ({
       datasets: [
@@ -84,10 +95,11 @@ export const SpeedChart = (props: SpeedChartProps) => {
                 showLine: false
               }
             ]
-          : [])
+          : []),
+        ...annotationDatasets
       ]
     }),
-    [points, palette, cursorPoint, showCursor]
+    [points, palette, cursorPoint, showCursor, annotationDatasets]
   );
 
   const options = useMemo(() => {
@@ -112,16 +124,32 @@ export const SpeedChart = (props: SpeedChartProps) => {
   }, [palette, onCursorTimeChange, points]);
 
   const plugins = useMemo(
-    () => (showCursor ? [createCursorLinePlugin(cursorTime, palette.mutedText)] : []),
-    [showCursor, cursorTime, palette.mutedText]
+    () => [
+      ...(showCursor ? [createCursorLinePlugin(cursorTime, palette.mutedText)] : []),
+      ...(showAnnotations
+        ? [createAnnotationMarkersPlugin(annotations, palette.grid, palette.mutedText)]
+        : [])
+    ],
+    [showCursor, cursorTime, palette.mutedText, showAnnotations, annotations, palette.grid]
   );
 
   return (
-    <div className={className} style={getCardStyle(theme, height, styleTokens)}>
-      <p style={getTitleStyle(theme, styleTokens)}>{title}</p>
-      <div style={{ height: "calc(100% - 26px)" }}>
-        <Line data={chartData} options={options} plugins={plugins} />
-      </div>
-    </div>
+    <TelemetryCard
+      theme={theme}
+      height={height}
+      className={className}
+      title={title}
+      styleTokens={styleTokens}
+      ariaLabel={ariaLabel}
+      defaultAriaLabel="Telemetry speed chart"
+    >
+      <ClientChart
+        type="line"
+        data={chartData}
+        options={options}
+        plugins={plugins}
+        ariaLabel={ariaLabel ?? "Speed over time line chart"}
+      />
+    </TelemetryCard>
   );
 };

@@ -1,6 +1,5 @@
 // src/components/SpeedChart.tsx
-import { useMemo } from "react";
-import { Line } from "react-chartjs-2";
+import { useMemo as useMemo2 } from "react";
 
 // src/components/chartTheme.ts
 var DARK_TOKENS = {
@@ -13,7 +12,8 @@ var DARK_TOKENS = {
   primarySoft: "rgba(86, 184, 255, 0.2)",
   accent: "#6ee7b7",
   danger: "#ff7f9f",
-  shadow: "0 8px 30px rgba(0, 0, 0, 0.35)"
+  shadow: "0 8px 30px rgba(0, 0, 0, 0.35)",
+  focusRing: "0 0 0 3px rgba(86, 184, 255, 0.35)"
 };
 var LIGHT_TOKENS = {
   background: "#ffffff",
@@ -25,7 +25,21 @@ var LIGHT_TOKENS = {
   primarySoft: "rgba(0, 115, 255, 0.15)",
   accent: "#0f9f6e",
   danger: "#dc3f66",
-  shadow: "0 8px 24px rgba(15, 23, 42, 0.08)"
+  shadow: "0 8px 24px rgba(15, 23, 42, 0.08)",
+  focusRing: "0 0 0 3px rgba(0, 115, 255, 0.22)"
+};
+var HIGH_CONTRAST_TOKENS = {
+  background: "#000000",
+  border: "#ffffff",
+  text: "#ffffff",
+  mutedText: "#e5e7eb",
+  grid: "rgba(255, 255, 255, 0.4)",
+  primary: "#00e5ff",
+  primarySoft: "rgba(0, 229, 255, 0.25)",
+  accent: "#c8ff00",
+  danger: "#ff4d4d",
+  shadow: "0 0 0 2px #ffffff",
+  focusRing: "0 0 0 3px rgba(255, 255, 255, 0.9)"
 };
 var TELEMETRY_CSS_VARIABLES = {
   background: "--f1-telemetry-background",
@@ -37,7 +51,8 @@ var TELEMETRY_CSS_VARIABLES = {
   primarySoft: "--f1-telemetry-primary-soft",
   accent: "--f1-telemetry-accent",
   danger: "--f1-telemetry-danger",
-  shadow: "--f1-telemetry-shadow"
+  shadow: "--f1-telemetry-shadow",
+  focusRing: "--f1-telemetry-focus-ring"
 };
 var readCssVariable = (name) => {
   if (typeof document === "undefined") {
@@ -59,7 +74,7 @@ var createTelemetryCssVariables = (tokens) => Object.fromEntries(
   })
 );
 var resolveThemeTokens = (theme = "dark", overrides) => ({
-  ...theme === "light" ? LIGHT_TOKENS : DARK_TOKENS,
+  ...theme === "light" ? LIGHT_TOKENS : theme === "high-contrast" ? HIGH_CONTRAST_TOKENS : DARK_TOKENS,
   ...fromCssVariables(),
   ...overrides
 });
@@ -460,6 +475,232 @@ var createSectorMarkersPlugin = (markers, color) => ({
     ctx.restore();
   }
 });
+var annotationLabelFor = (annotation) => {
+  if (annotation.label) {
+    return annotation.label;
+  }
+  if (annotation.type === "corner") {
+    return "Corner";
+  }
+  if (annotation.type === "drs") {
+    return "DRS";
+  }
+  return "Incident";
+};
+var createAnnotationMarkersPlugin = (annotations, color, textColor) => ({
+  id: "f1-telemetry-annotations",
+  afterDatasetsDraw: (chart) => {
+    if (!annotations || annotations.length === 0) {
+      return;
+    }
+    const xScale = chart.scales.x;
+    const chartArea = chart.chartArea;
+    if (!xScale || !chartArea) {
+      return;
+    }
+    const { ctx } = chart;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = textColor;
+    ctx.font = "11px system-ui, -apple-system, sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    annotations.forEach((annotation) => {
+      if (annotation.time === void 0) {
+        return;
+      }
+      const x = xScale.getPixelForValue(annotation.time);
+      if (!Number.isFinite(x) || x < chartArea.left || x > chartArea.right) {
+        return;
+      }
+      ctx.beginPath();
+      ctx.setLineDash([2, 3]);
+      ctx.moveTo(x, chartArea.top);
+      ctx.lineTo(x, chartArea.bottom);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const label = annotationLabelFor(annotation);
+      ctx.fillText(label, x + 4, chartArea.top + 4);
+    });
+    ctx.restore();
+  }
+});
+
+// src/utils/annotations.ts
+var TYPE_COLORS = {
+  corner: "primary",
+  drs: "accent",
+  incident: "danger"
+};
+var TYPE_LABELS = {
+  corner: "Corners",
+  drs: "DRS Zones",
+  incident: "Incidents"
+};
+var createLineAnnotationDatasets = (annotations, time, valueSeries, palette) => {
+  if (!annotations || annotations.length === 0 || time.length === 0) {
+    return [];
+  }
+  const grouped = /* @__PURE__ */ new Map();
+  annotations.forEach((annotation) => {
+    const annotationTime = annotation.time;
+    if (annotationTime === void 0) {
+      return;
+    }
+    const index = findNearestIndex(time, annotationTime);
+    if (index < 0) {
+      return;
+    }
+    const points = grouped.get(annotation.type) ?? [];
+    points.push({
+      x: time[index],
+      y: valueSeries[index]
+    });
+    grouped.set(annotation.type, points);
+  });
+  return Array.from(grouped.entries()).map(([type, points]) => {
+    const color = palette[TYPE_COLORS[type]];
+    const pointStyle = type === "corner" ? "triangle" : type === "drs" ? "rectRounded" : "crossRot";
+    return {
+      label: TYPE_LABELS[type],
+      data: points,
+      showLine: false,
+      pointRadius: 5,
+      pointHoverRadius: 7,
+      pointStyle,
+      borderColor: color,
+      backgroundColor: color
+    };
+  });
+};
+var createTrackAnnotationDataset = (annotations, trackPoints, time, palette) => {
+  if (!annotations || annotations.length === 0) {
+    return [];
+  }
+  const byType = /* @__PURE__ */ new Map();
+  annotations.forEach((annotation) => {
+    if (typeof annotation.x === "number" && typeof annotation.y === "number") {
+      const points = byType.get(annotation.type) ?? [];
+      points.push({ x: annotation.x, y: annotation.y });
+      byType.set(annotation.type, points);
+      return;
+    }
+    if (typeof annotation.time === "number" && time.length > 0) {
+      const index = findNearestIndex(time, annotation.time);
+      if (index >= 0 && trackPoints[index]) {
+        const points = byType.get(annotation.type) ?? [];
+        points.push(trackPoints[index]);
+        byType.set(annotation.type, points);
+      }
+    }
+  });
+  return Array.from(byType.entries()).map(([type, points]) => {
+    const color = palette[TYPE_COLORS[type]];
+    const pointStyle = type === "corner" ? "triangle" : type === "drs" ? "rectRounded" : "crossRot";
+    return {
+      label: TYPE_LABELS[type],
+      data: points,
+      showLine: false,
+      pointRadius: 5,
+      pointHoverRadius: 7,
+      pointStyle,
+      borderColor: color,
+      backgroundColor: color
+    };
+  });
+};
+
+// src/components/TelemetryCard.tsx
+import { useMemo, useState } from "react";
+import { jsx, jsxs } from "react/jsx-runtime";
+var TelemetryCard = ({
+  theme = "dark",
+  height = 320,
+  className,
+  title,
+  styleTokens,
+  ariaLabel,
+  defaultAriaLabel,
+  children
+}) => {
+  const [isFocused, setIsFocused] = useState(false);
+  const palette = useMemo(() => resolveThemeTokens(theme, styleTokens), [theme, styleTokens]);
+  return /* @__PURE__ */ jsxs(
+    "section",
+    {
+      role: "figure",
+      "aria-label": ariaLabel ?? defaultAriaLabel,
+      tabIndex: 0,
+      onFocus: () => setIsFocused(true),
+      onBlur: () => setIsFocused(false),
+      className,
+      style: {
+        ...getCardStyle(theme, height, styleTokens),
+        boxShadow: isFocused ? `${palette.shadow}, ${palette.focusRing}` : palette.shadow,
+        outline: "none"
+      },
+      children: [
+        /* @__PURE__ */ jsx("p", { style: getTitleStyle(theme, styleTokens), children: title }),
+        /* @__PURE__ */ jsx("div", { style: { height: "calc(100% - 26px)" }, children })
+      ]
+    }
+  );
+};
+
+// src/components/ClientChart.tsx
+import { useEffect, useState as useState2 } from "react";
+import { jsx as jsx2 } from "react/jsx-runtime";
+var ClientChart = (props) => {
+  const [charts, setCharts] = useState2(null);
+  useEffect(() => {
+    let mounted = true;
+    import("react-chartjs-2").then((module) => {
+      if (mounted) {
+        setCharts(module);
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+  if (!charts) {
+    return /* @__PURE__ */ jsx2(
+      "div",
+      {
+        role: "img",
+        "aria-label": props.ariaLabel ?? "Loading telemetry chart",
+        style: {
+          width: "100%",
+          height: "100%",
+          borderRadius: 10,
+          background: "rgba(127, 127, 127, 0.08)"
+        }
+      }
+    );
+  }
+  if (props.type === "line") {
+    const Line = charts.Line;
+    return /* @__PURE__ */ jsx2(
+      Line,
+      {
+        data: props.data,
+        options: props.options,
+        plugins: props.plugins,
+        "aria-label": props.ariaLabel
+      }
+    );
+  }
+  const Scatter = charts.Scatter;
+  return /* @__PURE__ */ jsx2(
+    Scatter,
+    {
+      data: props.data,
+      options: props.options,
+      plugins: props.plugins,
+      "aria-label": props.ariaLabel
+    }
+  );
+};
 
 // src/utils/chartSetup.ts
 import {
@@ -477,23 +718,26 @@ import {
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler, Decimation);
 
 // src/components/SpeedChart.tsx
-import { jsx, jsxs } from "react/jsx-runtime";
+import { jsx as jsx3 } from "react/jsx-runtime";
 var SpeedChart = (props) => {
   const {
     theme = "dark",
     height = 320,
     className,
     title = "Speed vs Time",
+    ariaLabel,
     processing,
     styleTokens,
     showCursor = true,
     cursorTime,
-    onCursorTimeChange
+    onCursorTimeChange,
+    annotations,
+    showAnnotations = true
   } = props;
   const rawTime = props.data?.time ?? props.time ?? [];
   const rawSpeed = props.data?.speed ?? props.speed ?? [];
-  const palette = useMemo(() => resolveThemeTokens(theme, styleTokens), [theme, styleTokens]);
-  const processed = useMemo(
+  const palette = useMemo2(() => resolveThemeTokens(theme, styleTokens), [theme, styleTokens]);
+  const processed = useMemo2(
     () => processSeriesData({
       context: "SpeedChart",
       time: rawTime,
@@ -502,7 +746,7 @@ var SpeedChart = (props) => {
     }),
     [rawTime, rawSpeed, processing]
   );
-  const points = useMemo(
+  const points = useMemo2(
     () => processed.time.map((value, index) => ({
       x: value,
       y: processed.seriesMap.speed[index]
@@ -514,7 +758,16 @@ var SpeedChart = (props) => {
     x: processed.time[cursorIndex],
     y: processed.seriesMap.speed[cursorIndex]
   } : null;
-  const chartData = useMemo(
+  const annotationDatasets = useMemo2(
+    () => createLineAnnotationDatasets(
+      showAnnotations ? annotations : void 0,
+      processed.time,
+      processed.seriesMap.speed,
+      palette
+    ),
+    [showAnnotations, annotations, processed.time, processed.seriesMap.speed, palette]
+  );
+  const chartData = useMemo2(
     () => ({
       datasets: [
         {
@@ -538,12 +791,13 @@ var SpeedChart = (props) => {
             pointHoverRadius: 4,
             showLine: false
           }
-        ] : []
+        ] : [],
+        ...annotationDatasets
       ]
     }),
-    [points, palette, cursorPoint, showCursor]
+    [points, palette, cursorPoint, showCursor, annotationDatasets]
   );
-  const options = useMemo(() => {
+  const options = useMemo2(() => {
     const base = createLineOptions(palette, "Speed (km/h)");
     return {
       ...base,
@@ -560,20 +814,40 @@ var SpeedChart = (props) => {
       }
     };
   }, [palette, onCursorTimeChange, points]);
-  const plugins = useMemo(
-    () => showCursor ? [createCursorLinePlugin(cursorTime, palette.mutedText)] : [],
-    [showCursor, cursorTime, palette.mutedText]
+  const plugins = useMemo2(
+    () => [
+      ...showCursor ? [createCursorLinePlugin(cursorTime, palette.mutedText)] : [],
+      ...showAnnotations ? [createAnnotationMarkersPlugin(annotations, palette.grid, palette.mutedText)] : []
+    ],
+    [showCursor, cursorTime, palette.mutedText, showAnnotations, annotations, palette.grid]
   );
-  return /* @__PURE__ */ jsxs("div", { className, style: getCardStyle(theme, height, styleTokens), children: [
-    /* @__PURE__ */ jsx("p", { style: getTitleStyle(theme, styleTokens), children: title }),
-    /* @__PURE__ */ jsx("div", { style: { height: "calc(100% - 26px)" }, children: /* @__PURE__ */ jsx(Line, { data: chartData, options, plugins }) })
-  ] });
+  return /* @__PURE__ */ jsx3(
+    TelemetryCard,
+    {
+      theme,
+      height,
+      className,
+      title,
+      styleTokens,
+      ariaLabel,
+      defaultAriaLabel: "Telemetry speed chart",
+      children: /* @__PURE__ */ jsx3(
+        ClientChart,
+        {
+          type: "line",
+          data: chartData,
+          options,
+          plugins,
+          ariaLabel: ariaLabel ?? "Speed over time line chart"
+        }
+      )
+    }
+  );
 };
 
 // src/components/ThrottleBrakeChart.tsx
-import { useMemo as useMemo2 } from "react";
-import { Line as Line2 } from "react-chartjs-2";
-import { jsx as jsx2, jsxs as jsxs2 } from "react/jsx-runtime";
+import { useMemo as useMemo3 } from "react";
+import { jsx as jsx4 } from "react/jsx-runtime";
 var ThrottleBrakeChart = ({
   time,
   throttle,
@@ -582,14 +856,17 @@ var ThrottleBrakeChart = ({
   height = 320,
   className,
   title = "Throttle & Brake",
+  ariaLabel,
   processing,
   styleTokens,
   showCursor = true,
   cursorTime,
-  onCursorTimeChange
+  onCursorTimeChange,
+  annotations,
+  showAnnotations = true
 }) => {
-  const palette = useMemo2(() => resolveThemeTokens(theme, styleTokens), [theme, styleTokens]);
-  const processed = useMemo2(
+  const palette = useMemo3(() => resolveThemeTokens(theme, styleTokens), [theme, styleTokens]);
+  const processed = useMemo3(
     () => processSeriesData({
       context: "ThrottleBrakeChart",
       time,
@@ -598,14 +875,14 @@ var ThrottleBrakeChart = ({
     }),
     [time, throttle, brake, processing]
   );
-  const throttlePoints = useMemo2(
+  const throttlePoints = useMemo3(
     () => processed.time.map((value, index) => ({
       x: value,
       y: processed.seriesMap.throttle[index]
     })),
     [processed.time, processed.seriesMap.throttle]
   );
-  const brakePoints = useMemo2(
+  const brakePoints = useMemo3(
     () => processed.time.map((value, index) => ({
       x: value,
       y: processed.seriesMap.brake[index]
@@ -615,7 +892,31 @@ var ThrottleBrakeChart = ({
   const cursorIndex = findNearestIndex(processed.time, cursorTime);
   const cursorThrottle = cursorIndex >= 0 ? { x: processed.time[cursorIndex], y: processed.seriesMap.throttle[cursorIndex] } : null;
   const cursorBrake = cursorIndex >= 0 ? { x: processed.time[cursorIndex], y: processed.seriesMap.brake[cursorIndex] } : null;
-  const chartData = useMemo2(
+  const annotationDatasets = useMemo3(
+    () => [
+      ...createLineAnnotationDatasets(
+        showAnnotations ? annotations : void 0,
+        processed.time,
+        processed.seriesMap.throttle,
+        palette
+      ),
+      ...createLineAnnotationDatasets(
+        showAnnotations ? annotations : void 0,
+        processed.time,
+        processed.seriesMap.brake,
+        palette
+      )
+    ],
+    [
+      showAnnotations,
+      annotations,
+      processed.time,
+      processed.seriesMap.throttle,
+      processed.seriesMap.brake,
+      palette
+    ]
+  );
+  const chartData = useMemo3(
     () => ({
       datasets: [
         {
@@ -657,12 +958,13 @@ var ThrottleBrakeChart = ({
             showLine: false,
             pointRadius: 4
           }
-        ] : []
+        ] : [],
+        ...annotationDatasets
       ]
     }),
-    [throttlePoints, brakePoints, palette, cursorThrottle, cursorBrake, showCursor]
+    [throttlePoints, brakePoints, palette, cursorThrottle, cursorBrake, showCursor, annotationDatasets]
   );
-  const options = useMemo2(() => {
+  const options = useMemo3(() => {
     const base = createLineOptions(palette, "Input (%)", { min: 0, max: 100 });
     return {
       ...base,
@@ -678,20 +980,40 @@ var ThrottleBrakeChart = ({
       }
     };
   }, [palette, onCursorTimeChange, processed.time]);
-  const plugins = useMemo2(
-    () => showCursor ? [createCursorLinePlugin(cursorTime, palette.mutedText)] : [],
-    [showCursor, cursorTime, palette.mutedText]
+  const plugins = useMemo3(
+    () => [
+      ...showCursor ? [createCursorLinePlugin(cursorTime, palette.mutedText)] : [],
+      ...showAnnotations ? [createAnnotationMarkersPlugin(annotations, palette.grid, palette.mutedText)] : []
+    ],
+    [showCursor, cursorTime, palette.mutedText, showAnnotations, annotations, palette.grid]
   );
-  return /* @__PURE__ */ jsxs2("div", { className, style: getCardStyle(theme, height, styleTokens), children: [
-    /* @__PURE__ */ jsx2("p", { style: getTitleStyle(theme, styleTokens), children: title }),
-    /* @__PURE__ */ jsx2("div", { style: { height: "calc(100% - 26px)" }, children: /* @__PURE__ */ jsx2(Line2, { data: chartData, options, plugins }) })
-  ] });
+  return /* @__PURE__ */ jsx4(
+    TelemetryCard,
+    {
+      theme,
+      height,
+      className,
+      title,
+      styleTokens,
+      ariaLabel,
+      defaultAriaLabel: "Telemetry throttle and brake chart",
+      children: /* @__PURE__ */ jsx4(
+        ClientChart,
+        {
+          type: "line",
+          data: chartData,
+          options,
+          plugins,
+          ariaLabel: ariaLabel ?? "Throttle and brake line chart"
+        }
+      )
+    }
+  );
 };
 
 // src/components/LapComparisonChart.tsx
-import { useMemo as useMemo3 } from "react";
-import { Line as Line3 } from "react-chartjs-2";
-import { jsx as jsx3, jsxs as jsxs3 } from "react/jsx-runtime";
+import { useMemo as useMemo4 } from "react";
+import { jsx as jsx5 } from "react/jsx-runtime";
 var LapComparisonChart = ({
   driver1,
   driver2,
@@ -701,6 +1023,7 @@ var LapComparisonChart = ({
   height = 320,
   className,
   title = "Lap Comparison",
+  ariaLabel,
   processing,
   styleTokens,
   showCursor = true,
@@ -708,10 +1031,12 @@ var LapComparisonChart = ({
   onCursorTimeChange,
   mode = "overlay",
   sectorMarkers,
-  deltaLabel = "Delta (driver2 - driver1)"
+  deltaLabel = "Delta (driver2 - driver1)",
+  annotations,
+  showAnnotations = true
 }) => {
-  const palette = useMemo3(() => resolveThemeTokens(theme, styleTokens), [theme, styleTokens]);
-  const processedDriver1 = useMemo3(
+  const palette = useMemo4(() => resolveThemeTokens(theme, styleTokens), [theme, styleTokens]);
+  const processedDriver1 = useMemo4(
     () => processSeriesData({
       context: "LapComparisonChart.driver1",
       time: driver1.time,
@@ -720,7 +1045,7 @@ var LapComparisonChart = ({
     }),
     [driver1.time, driver1.speed, processing]
   );
-  const processedDriver2 = useMemo3(
+  const processedDriver2 = useMemo4(
     () => processSeriesData({
       context: "LapComparisonChart.driver2",
       time: driver2.time,
@@ -729,7 +1054,7 @@ var LapComparisonChart = ({
     }),
     [driver2.time, driver2.speed, processing]
   );
-  const overlayData = useMemo3(
+  const overlayData = useMemo4(
     () => ({
       driver1: processedDriver1.time.map((value, index) => ({
         x: value,
@@ -742,7 +1067,7 @@ var LapComparisonChart = ({
     }),
     [processedDriver1.time, processedDriver1.seriesMap.speed, processedDriver2.time, processedDriver2.seriesMap.speed]
   );
-  const deltaPoints = useMemo3(() => {
+  const deltaPoints = useMemo4(() => {
     const length = Math.min(processedDriver1.time.length, processedDriver2.time.length);
     return Array.from({ length }, (_, index) => ({
       x: processedDriver1.time[index],
@@ -755,7 +1080,18 @@ var LapComparisonChart = ({
     cursorTime
   );
   const cursorPoint = cursorIndex >= 0 ? cursorSeries[cursorIndex] : null;
-  const chartData = useMemo3(
+  const annotationSeries = mode === "delta" ? deltaPoints.map((point) => point.y) : processedDriver1.seriesMap.speed;
+  const annotationTime = mode === "delta" ? deltaPoints.map((point) => point.x) : processedDriver1.time;
+  const annotationDatasets = useMemo4(
+    () => createLineAnnotationDatasets(
+      showAnnotations ? annotations : void 0,
+      annotationTime,
+      annotationSeries,
+      palette
+    ),
+    [showAnnotations, annotations, annotationTime, annotationSeries, palette]
+  );
+  const chartData = useMemo4(
     () => mode === "delta" ? {
       datasets: [
         {
@@ -778,7 +1114,8 @@ var LapComparisonChart = ({
             showLine: false,
             pointRadius: 4
           }
-        ] : []
+        ] : [],
+        ...annotationDatasets
       ]
     } : {
       datasets: [
@@ -811,7 +1148,8 @@ var LapComparisonChart = ({
             showLine: false,
             pointRadius: 4
           }
-        ] : []
+        ] : [],
+        ...annotationDatasets
       ]
     },
     [
@@ -821,6 +1159,7 @@ var LapComparisonChart = ({
       palette,
       cursorPoint,
       showCursor,
+      annotationDatasets,
       driver1Label,
       driver1.label,
       driver1.color,
@@ -831,7 +1170,7 @@ var LapComparisonChart = ({
       overlayData.driver2
     ]
   );
-  const options = useMemo3(() => {
+  const options = useMemo4(() => {
     const base = createLineOptions(palette, mode === "delta" ? "Delta Speed (km/h)" : "Speed (km/h)");
     return {
       ...base,
@@ -848,23 +1187,49 @@ var LapComparisonChart = ({
       }
     };
   }, [palette, mode, onCursorTimeChange, deltaPoints, overlayData.driver1]);
-  const plugins = useMemo3(
+  const plugins = useMemo4(
     () => [
       ...showCursor ? [createCursorLinePlugin(cursorTime, palette.mutedText)] : [],
-      createSectorMarkersPlugin(sectorMarkers, palette.grid)
+      createSectorMarkersPlugin(sectorMarkers, palette.grid),
+      ...showAnnotations ? [createAnnotationMarkersPlugin(annotations, palette.grid, palette.mutedText)] : []
     ],
-    [showCursor, cursorTime, palette.mutedText, palette.grid, sectorMarkers]
+    [
+      showCursor,
+      cursorTime,
+      palette.mutedText,
+      palette.grid,
+      sectorMarkers,
+      showAnnotations,
+      annotations
+    ]
   );
-  return /* @__PURE__ */ jsxs3("div", { className, style: getCardStyle(theme, height, styleTokens), children: [
-    /* @__PURE__ */ jsx3("p", { style: getTitleStyle(theme, styleTokens), children: title }),
-    /* @__PURE__ */ jsx3("div", { style: { height: "calc(100% - 26px)" }, children: /* @__PURE__ */ jsx3(Line3, { data: chartData, options, plugins }) })
-  ] });
+  return /* @__PURE__ */ jsx5(
+    TelemetryCard,
+    {
+      theme,
+      height,
+      className,
+      title,
+      styleTokens,
+      ariaLabel,
+      defaultAriaLabel: "Telemetry lap comparison chart",
+      children: /* @__PURE__ */ jsx5(
+        ClientChart,
+        {
+          type: "line",
+          data: chartData,
+          options,
+          plugins,
+          ariaLabel: ariaLabel ?? "Lap comparison line chart"
+        }
+      )
+    }
+  );
 };
 
 // src/components/TrackMap.tsx
-import { useMemo as useMemo4 } from "react";
-import { Scatter } from "react-chartjs-2";
-import { jsx as jsx4, jsxs as jsxs4 } from "react/jsx-runtime";
+import { useMemo as useMemo5 } from "react";
+import { jsx as jsx6 } from "react/jsx-runtime";
 var TrackMap = ({
   x,
   y,
@@ -873,15 +1238,18 @@ var TrackMap = ({
   height = 360,
   className,
   title = "Track Map",
+  ariaLabel,
   processing,
   styleTokens,
   showCursor = true,
   cursorTime,
-  onCursorTimeChange
+  onCursorTimeChange,
+  annotations,
+  showAnnotations = true
 }) => {
-  const palette = useMemo4(() => resolveThemeTokens(theme, styleTokens), [theme, styleTokens]);
-  const timeAxis = useMemo4(() => time ?? x.map((_, index) => index), [time, x]);
-  const processed = useMemo4(
+  const palette = useMemo5(() => resolveThemeTokens(theme, styleTokens), [theme, styleTokens]);
+  const timeAxis = useMemo5(() => time ?? x.map((_, index) => index), [time, x]);
+  const processed = useMemo5(
     () => processSeriesData({
       context: "TrackMap",
       time: timeAxis,
@@ -890,7 +1258,7 @@ var TrackMap = ({
     }),
     [timeAxis, x, y, processing]
   );
-  const points = useMemo4(
+  const points = useMemo5(
     () => processed.seriesMap.x.map((xValue, index) => ({
       x: xValue,
       y: processed.seriesMap.y[index]
@@ -899,7 +1267,16 @@ var TrackMap = ({
   );
   const cursorIndex = findNearestIndex(processed.time, cursorTime);
   const cursorPoint = cursorIndex >= 0 ? points[cursorIndex] : null;
-  const data = useMemo4(
+  const annotationDatasets = useMemo5(
+    () => createTrackAnnotationDataset(
+      showAnnotations ? annotations : void 0,
+      points,
+      processed.time,
+      palette
+    ),
+    [showAnnotations, annotations, points, processed.time, palette]
+  );
+  const data = useMemo5(
     () => ({
       datasets: [
         {
@@ -922,12 +1299,13 @@ var TrackMap = ({
             backgroundColor: palette.accent,
             pointRadius: 5
           }
-        ] : []
+        ] : [],
+        ...annotationDatasets
       ]
     }),
-    [points, palette, cursorPoint, showCursor]
+    [points, palette, cursorPoint, showCursor, annotationDatasets]
   );
-  const options = useMemo4(() => {
+  const options = useMemo5(() => {
     const base = createTrackMapOptions(palette);
     return {
       ...base,
@@ -943,32 +1321,73 @@ var TrackMap = ({
       }
     };
   }, [palette, onCursorTimeChange, processed.time]);
-  return /* @__PURE__ */ jsxs4("div", { className, style: getCardStyle(theme, height, styleTokens), children: [
-    /* @__PURE__ */ jsx4("p", { style: getTitleStyle(theme, styleTokens), children: title }),
-    /* @__PURE__ */ jsx4("div", { style: { height: "calc(100% - 26px)" }, children: /* @__PURE__ */ jsx4(Scatter, { data, options }) })
-  ] });
+  return /* @__PURE__ */ jsx6(
+    TelemetryCard,
+    {
+      theme,
+      height,
+      className,
+      title,
+      styleTokens,
+      ariaLabel,
+      defaultAriaLabel: "Telemetry track map chart",
+      children: /* @__PURE__ */ jsx6(
+        ClientChart,
+        {
+          type: "scatter",
+          data,
+          options,
+          ariaLabel: ariaLabel ?? "Track map scatter chart"
+        }
+      )
+    }
+  );
 };
 
 // src/components/TelemetryDashboard.tsx
-import { useMemo as useMemo5, useState } from "react";
-import { jsx as jsx5, jsxs as jsxs5 } from "react/jsx-runtime";
+import { useMemo as useMemo6, useState as useState3 } from "react";
+
+// src/extensions/registry.ts
+var panelRegistry = /* @__PURE__ */ new Map();
+var registerTelemetryPanel = (extension) => {
+  if (!extension.id) {
+    throw new Error("Telemetry panel extension must include a non-empty id.");
+  }
+  panelRegistry.set(extension.id, extension);
+};
+var unregisterTelemetryPanel = (id) => {
+  panelRegistry.delete(id);
+};
+var clearTelemetryPanels = () => {
+  panelRegistry.clear();
+};
+var getTelemetryPanels = () => Array.from(panelRegistry.values()).sort((left, right) => (left.order ?? 0) - (right.order ?? 0));
+
+// src/components/TelemetryDashboard.tsx
+import { Fragment, jsx as jsx7, jsxs as jsxs2 } from "react/jsx-runtime";
+var sortPanels = (panels) => panels.sort((left, right) => (left.order ?? 0) - (right.order ?? 0));
 var TelemetryDashboard = ({
   telemetry,
   comparison,
   lapMode = "overlay",
   sectorMarkers,
+  annotations,
   theme = "dark",
   styleTokens,
   processing,
   syncCursor = true,
   className,
   chartHeight = 320,
-  trackMapHeight = 360
+  trackMapHeight = 360,
+  panelGap = 16,
+  minPanelWidth = 320,
+  includeDefaultPanels = true,
+  extensions = []
 }) => {
-  const [cursorTime, setCursorTime] = useState(null);
+  const [cursorTime, setCursorTime] = useState3(null);
   const sharedCursor = syncCursor ? cursorTime : null;
   const onCursorChange = syncCursor ? setCursorTime : void 0;
-  const driver2 = useMemo5(
+  const driver2 = useMemo6(
     () => comparison ?? {
       time: telemetry.time,
       speed: telemetry.speed,
@@ -976,85 +1395,123 @@ var TelemetryDashboard = ({
     },
     [comparison, telemetry.time, telemetry.speed]
   );
-  const cssTokenStyle = useMemo5(
+  const cssTokenStyle = useMemo6(
     () => createTelemetryCssVariables(styleTokens ?? {}),
     [styleTokens]
   );
-  return /* @__PURE__ */ jsxs5(
+  const extensionPanels = useMemo6(() => {
+    const allPanels = /* @__PURE__ */ new Map();
+    getTelemetryPanels().forEach((panel) => allPanels.set(panel.id, panel));
+    extensions.forEach((panel) => allPanels.set(panel.id, panel));
+    return sortPanels(Array.from(allPanels.values()));
+  }, [extensions]);
+  const panelContext = useMemo6(
+    () => ({
+      telemetry,
+      comparison: driver2,
+      lapMode,
+      sectorMarkers,
+      annotations,
+      theme,
+      styleTokens,
+      processing,
+      cursorTime: sharedCursor,
+      setCursorTime
+    }),
+    [
+      telemetry,
+      driver2,
+      lapMode,
+      sectorMarkers,
+      annotations,
+      theme,
+      styleTokens,
+      processing,
+      sharedCursor
+    ]
+  );
+  return /* @__PURE__ */ jsxs2(
     "div",
     {
       className,
       style: {
         ...cssTokenStyle,
         display: "grid",
-        gap: 16,
-        gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))"
+        gap: panelGap,
+        gridTemplateColumns: `repeat(auto-fit, minmax(${minPanelWidth}px, 1fr))`
       },
       children: [
-        /* @__PURE__ */ jsx5(
-          SpeedChart,
-          {
-            title: "Speed",
-            time: telemetry.time,
-            speed: telemetry.speed,
-            theme,
-            processing,
-            styleTokens,
-            height: chartHeight,
-            cursorTime: sharedCursor,
-            onCursorTimeChange: onCursorChange,
-            showCursor: syncCursor
-          }
-        ),
-        /* @__PURE__ */ jsx5(
-          ThrottleBrakeChart,
-          {
-            title: "Driver Inputs",
-            time: telemetry.time,
-            throttle: telemetry.throttle,
-            brake: telemetry.brake,
-            theme,
-            processing,
-            styleTokens,
-            height: chartHeight,
-            cursorTime: sharedCursor,
-            onCursorTimeChange: onCursorChange,
-            showCursor: syncCursor
-          }
-        ),
-        /* @__PURE__ */ jsx5(
-          LapComparisonChart,
-          {
-            title: lapMode === "delta" ? "Lap Delta" : "Lap Comparison",
-            driver1: { time: telemetry.time, speed: telemetry.speed, label: "Driver 1" },
-            driver2,
-            mode: lapMode,
-            sectorMarkers,
-            theme,
-            processing,
-            styleTokens,
-            height: chartHeight,
-            cursorTime: sharedCursor,
-            onCursorTimeChange: onCursorChange,
-            showCursor: syncCursor
-          }
-        ),
-        /* @__PURE__ */ jsx5(
-          TrackMap,
-          {
-            title: "Track Position",
-            x: telemetry.x,
-            y: telemetry.y,
-            time: telemetry.time,
-            theme,
-            processing,
-            styleTokens,
-            height: trackMapHeight,
-            cursorTime: sharedCursor,
-            onCursorTimeChange: onCursorChange,
-            showCursor: syncCursor
-          }
-        )
+        includeDefaultPanels ? /* @__PURE__ */ jsxs2(Fragment, { children: [
+          /* @__PURE__ */ jsx7(
+            SpeedChart,
+            {
+              title: "Speed",
+              time: telemetry.time,
+              speed: telemetry.speed,
+              theme,
+              processing,
+              styleTokens,
+              annotations,
+              height: chartHeight,
+              cursorTime: sharedCursor,
+              onCursorTimeChange: onCursorChange,
+              showCursor: syncCursor
+            }
+          ),
+          /* @__PURE__ */ jsx7(
+            ThrottleBrakeChart,
+            {
+              title: "Driver Inputs",
+              time: telemetry.time,
+              throttle: telemetry.throttle,
+              brake: telemetry.brake,
+              theme,
+              processing,
+              styleTokens,
+              annotations,
+              height: chartHeight,
+              cursorTime: sharedCursor,
+              onCursorTimeChange: onCursorChange,
+              showCursor: syncCursor
+            }
+          ),
+          /* @__PURE__ */ jsx7(
+            LapComparisonChart,
+            {
+              title: lapMode === "delta" ? "Lap Delta" : "Lap Comparison",
+              driver1: { time: telemetry.time, speed: telemetry.speed, label: "Driver 1" },
+              driver2,
+              mode: lapMode,
+              sectorMarkers,
+              annotations,
+              theme,
+              processing,
+              styleTokens,
+              height: chartHeight,
+              cursorTime: sharedCursor,
+              onCursorTimeChange: onCursorChange,
+              showCursor: syncCursor
+            }
+          ),
+          /* @__PURE__ */ jsx7(
+            TrackMap,
+            {
+              title: "Track Position",
+              x: telemetry.x,
+              y: telemetry.y,
+              time: telemetry.time,
+              annotations,
+              theme,
+              processing,
+              styleTokens,
+              height: trackMapHeight,
+              cursorTime: sharedCursor,
+              onCursorTimeChange: onCursorChange,
+              showCursor: syncCursor
+            }
+          )
+        ] }) : null,
+        extensionPanels.map((panel) => /* @__PURE__ */ jsx7("div", { children: panel.render(panelContext) }, panel.id))
       ]
     }
   );
@@ -1145,17 +1602,224 @@ var formatTelemetry = (data) => {
   warnTelemetryIssues(validateTelemetry(formatted, "formatTelemetry"));
   return formatted;
 };
+
+// src/adapters/shared.ts
+var toNumber2 = (value) => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return null;
+};
+var parseClockLikeTime = (value) => {
+  const normalized = value.trim();
+  if (!normalized) {
+    return null;
+  }
+  if (/^\d+(\.\d+)?$/.test(normalized)) {
+    return Number(normalized);
+  }
+  const dayMatch = normalized.match(/(\d+)\s+days?\s+(\d+):(\d+):(\d+(?:\.\d+)?)/i);
+  if (dayMatch) {
+    const [, days, hours, minutes, seconds] = dayMatch;
+    return Number(days) * 86400 + Number(hours) * 3600 + Number(minutes) * 60 + Number(seconds);
+  }
+  const segments = normalized.split(":");
+  if (segments.length === 3) {
+    return Number(segments[0]) * 3600 + Number(segments[1]) * 60 + Number(segments[2]);
+  }
+  if (segments.length === 2) {
+    return Number(segments[0]) * 60 + Number(segments[1]);
+  }
+  return null;
+};
+var toSeconds = (value) => {
+  const direct = toNumber2(value);
+  if (direct !== null) {
+    return direct;
+  }
+  if (value instanceof Date) {
+    return value.getTime() / 1e3;
+  }
+  if (typeof value === "string") {
+    const clock = parseClockLikeTime(value);
+    if (clock !== null && Number.isFinite(clock)) {
+      return clock;
+    }
+    const dateTimestamp = Date.parse(value);
+    if (Number.isFinite(dateTimestamp)) {
+      return dateTimestamp / 1e3;
+    }
+  }
+  return null;
+};
+var pickField = (point, keys) => {
+  for (const key of keys) {
+    if (key in point) {
+      return point[key];
+    }
+  }
+  return void 0;
+};
+
+// src/adapters/fastf1.ts
+var TIME_KEYS2 = ["SessionTime", "Time", "time", "timestamp"];
+var SPEED_KEYS2 = ["Speed", "speed"];
+var THROTTLE_KEYS2 = ["Throttle", "throttle"];
+var BRAKE_KEYS2 = ["Brake", "brake"];
+var X_KEYS2 = ["X", "x", "PositionX", "posX"];
+var Y_KEYS2 = ["Y", "y", "PositionY", "posY"];
+var fromPoints = (points) => {
+  const normalized = points.map((point, index) => ({
+    time: toSeconds(pickField(point, TIME_KEYS2)) ?? index,
+    speed: toNumber2(pickField(point, SPEED_KEYS2)) ?? 0,
+    throttle: toNumber2(pickField(point, THROTTLE_KEYS2)) ?? 0,
+    brake: toNumber2(pickField(point, BRAKE_KEYS2)) ?? 0,
+    x: toNumber2(pickField(point, X_KEYS2)) ?? 0,
+    y: toNumber2(pickField(point, Y_KEYS2)) ?? 0
+  }));
+  return formatTelemetry(normalized);
+};
+var fromFastF1Telemetry = (input) => {
+  if (Array.isArray(input)) {
+    return fromPoints(input);
+  }
+  if ("records" in input && Array.isArray(input.records)) {
+    return fromPoints(input.records);
+  }
+  if ("telemetry" in input && Array.isArray(input.telemetry)) {
+    return fromPoints(input.telemetry);
+  }
+  return formatTelemetry({
+    time: input.SessionTime ?? input.Time ?? input.time,
+    speed: input.Speed ?? input.speed,
+    throttle: input.Throttle ?? input.throttle,
+    brake: input.Brake ?? input.brake,
+    x: input.X ?? input.x,
+    y: input.Y ?? input.y
+  });
+};
+
+// src/adapters/openf1.ts
+var TIME_KEYS3 = ["session_time", "date", "time", "timestamp", "time_seconds"];
+var SPEED_KEYS3 = ["speed", "speed_kmh"];
+var THROTTLE_KEYS3 = ["throttle", "throttle_percentage"];
+var BRAKE_KEYS3 = ["brake", "brake_percentage"];
+var X_KEYS3 = ["x", "position_x", "world_x"];
+var Y_KEYS3 = ["y", "position_y", "world_y"];
+var fromOpenF1Telemetry = (input) => {
+  const points = input.map((point, index) => ({
+    time: toSeconds(pickField(point, TIME_KEYS3)) ?? index,
+    speed: toNumber2(pickField(point, SPEED_KEYS3)) ?? 0,
+    throttle: toNumber2(pickField(point, THROTTLE_KEYS3)) ?? 0,
+    brake: toNumber2(pickField(point, BRAKE_KEYS3)) ?? 0,
+    x: toNumber2(pickField(point, X_KEYS3)) ?? 0,
+    y: toNumber2(pickField(point, Y_KEYS3)) ?? 0
+  }));
+  return formatTelemetry(points);
+};
+
+// src/adapters/csv.ts
+var normalizeHeader = (value) => value.trim().toLowerCase();
+var HEADER_KEY_MAP = {
+  time: "time",
+  timestamp: "time",
+  t: "time",
+  speed: "speed",
+  velocity: "speed",
+  throttle: "throttle",
+  brake: "brake",
+  x: "x",
+  y: "y"
+};
+var detectDelimiter = (row) => {
+  if (row.includes("	")) {
+    return "	";
+  }
+  if (row.includes(";")) {
+    return ";";
+  }
+  return ",";
+};
+var splitCsvRow = (row, delimiter) => {
+  const values = [];
+  let current = "";
+  let inQuotes = false;
+  for (let index = 0; index < row.length; index += 1) {
+    const char = row[index];
+    if (char === '"') {
+      if (inQuotes && row[index + 1] === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if (char === delimiter && !inQuotes) {
+      values.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  values.push(current.trim());
+  return values;
+};
+var maybeNumber = (value) => {
+  if (value === "") {
+    return value;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : value;
+};
+var fromCsvTelemetry = (csv, options = {}) => {
+  const rows = csv.split(/\r?\n/).map((row) => row.trim()).filter((row) => row.length > 0);
+  if (rows.length === 0) {
+    return formatTelemetry([]);
+  }
+  const delimiter = options.delimiter ?? detectDelimiter(rows[0]);
+  const hasHeader = options.hasHeader ?? true;
+  const rawHeaders = hasHeader ? splitCsvRow(rows[0], delimiter) : ["time", "speed", "throttle", "brake", "x", "y"];
+  const headers = rawHeaders.map((header) => HEADER_KEY_MAP[normalizeHeader(header)] ?? normalizeHeader(header));
+  const startIndex = hasHeader ? 1 : 0;
+  const points = [];
+  for (let rowIndex = startIndex; rowIndex < rows.length; rowIndex += 1) {
+    const columns = splitCsvRow(rows[rowIndex], delimiter);
+    const point = {};
+    headers.forEach((header, columnIndex) => {
+      const value = columns[columnIndex] ?? "";
+      point[header] = maybeNumber(value);
+    });
+    points.push(point);
+  }
+  return formatTelemetry(points);
+};
 export {
   LapComparisonChart,
   SpeedChart,
   TelemetryDashboard,
   ThrottleBrakeChart,
   TrackMap,
+  clearTelemetryPanels,
+  createLineAnnotationDatasets,
   createTelemetryCssVariables,
+  createTrackAnnotationDataset,
   findNearestIndex,
   formatTelemetry,
+  fromCsvTelemetry,
+  fromFastF1Telemetry,
+  fromOpenF1Telemetry,
+  getTelemetryPanels,
   processSeriesData,
+  registerTelemetryPanel,
   telemetryCssVariables,
+  unregisterTelemetryPanel,
   validateTelemetry
 };
 //# sourceMappingURL=index.js.map

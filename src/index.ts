@@ -8,21 +8,30 @@ export { formatTelemetry } from "./utils/formatTelemetry";
 export { processSeriesData, findNearestIndex } from "./utils/processing";
 export { validateTelemetry } from "./utils/validation";
 export { createTelemetryCssVariables, telemetryCssVariables } from "./components/chartTheme";
+export { createLineAnnotationDatasets, createTrackAnnotationDataset } from "./utils/annotations";
+export { registerTelemetryPanel, unregisterTelemetryPanel, clearTelemetryPanels, getTelemetryPanels } from "./extensions/registry";
+export * from "./adapters";
 
 export type {
   ThemeMode,
   DownsampleStrategy,
   LapComparisonMode,
+  TelemetryAnnotationType,
+  TelemetrySeverity,
   ChartContainerProps,
   DataProcessingOptions,
   TelemetryWindow,
   TelemetryStyleTokens,
   CursorSyncProps,
+  TelemetryAnnotation,
+  AnnotationProps,
   SpeedChartProps,
   ThrottleBrakeChartProps,
   DriverLapTelemetry,
   LapComparisonChartProps,
   TrackMapProps,
+  TelemetryPanelRenderContext,
+  TelemetryPanelExtension,
   TelemetryDashboardProps,
   FormattedTelemetry,
   RawTelemetryPoint,

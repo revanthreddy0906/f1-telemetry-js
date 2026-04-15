@@ -12,7 +12,8 @@ const DARK_TOKENS: TelemetryStyleTokens = {
   primarySoft: "rgba(86, 184, 255, 0.2)",
   accent: "#6ee7b7",
   danger: "#ff7f9f",
-  shadow: "0 8px 30px rgba(0, 0, 0, 0.35)"
+  shadow: "0 8px 30px rgba(0, 0, 0, 0.35)",
+  focusRing: "0 0 0 3px rgba(86, 184, 255, 0.35)"
 };
 
 const LIGHT_TOKENS: TelemetryStyleTokens = {
@@ -25,7 +26,22 @@ const LIGHT_TOKENS: TelemetryStyleTokens = {
   primarySoft: "rgba(0, 115, 255, 0.15)",
   accent: "#0f9f6e",
   danger: "#dc3f66",
-  shadow: "0 8px 24px rgba(15, 23, 42, 0.08)"
+  shadow: "0 8px 24px rgba(15, 23, 42, 0.08)",
+  focusRing: "0 0 0 3px rgba(0, 115, 255, 0.22)"
+};
+
+const HIGH_CONTRAST_TOKENS: TelemetryStyleTokens = {
+  background: "#000000",
+  border: "#ffffff",
+  text: "#ffffff",
+  mutedText: "#e5e7eb",
+  grid: "rgba(255, 255, 255, 0.4)",
+  primary: "#00e5ff",
+  primarySoft: "rgba(0, 229, 255, 0.25)",
+  accent: "#c8ff00",
+  danger: "#ff4d4d",
+  shadow: "0 0 0 2px #ffffff",
+  focusRing: "0 0 0 3px rgba(255, 255, 255, 0.9)"
 };
 
 const TELEMETRY_CSS_VARIABLES: Record<keyof TelemetryStyleTokens, string> = {
@@ -38,7 +54,8 @@ const TELEMETRY_CSS_VARIABLES: Record<keyof TelemetryStyleTokens, string> = {
   primarySoft: "--f1-telemetry-primary-soft",
   accent: "--f1-telemetry-accent",
   danger: "--f1-telemetry-danger",
-  shadow: "--f1-telemetry-shadow"
+  shadow: "--f1-telemetry-shadow",
+  focusRing: "--f1-telemetry-focus-ring"
 };
 
 const readCssVariable = (name: string): string | null => {
@@ -75,7 +92,11 @@ export const resolveThemeTokens = (
   theme: ThemeMode = "dark",
   overrides?: Partial<TelemetryStyleTokens>
 ): TelemetryStyleTokens => ({
-  ...(theme === "light" ? LIGHT_TOKENS : DARK_TOKENS),
+  ...(theme === "light"
+    ? LIGHT_TOKENS
+    : theme === "high-contrast"
+      ? HIGH_CONTRAST_TOKENS
+      : DARK_TOKENS),
   ...fromCssVariables(),
   ...overrides
 });

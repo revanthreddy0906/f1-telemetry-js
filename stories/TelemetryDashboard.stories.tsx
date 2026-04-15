@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import React from "react";
 import { TelemetryDashboard } from "../src/components/TelemetryDashboard";
+import type { TelemetryPanelExtension } from "../src/types/telemetry";
 
 const samples = 1200;
 const time = Array.from({ length: samples }, (_, index) => index * 0.08);
@@ -31,6 +32,11 @@ export const Default: Story = {
       label: "Driver 2"
     },
     sectorMarkers: [16.8, 34.2, 56.7],
+    annotations: [
+      { type: "corner", time: 16.8, label: "T1" },
+      { type: "drs", time: 34.2, label: "DRS 1" },
+      { type: "incident", time: 56.7, label: "Wheel spin" }
+    ],
     processing: { maxPoints: 500, downsampleStrategy: "min-max" },
     lapMode: "overlay",
     syncCursor: true
@@ -42,5 +48,33 @@ export const DeltaMode: Story = {
     ...Default.args,
     lapMode: "delta",
     processing: { maxPoints: 350, downsampleStrategy: "min-max", window: { startTime: 8, endTime: 72 } }
+  }
+};
+
+const extensionPanels: TelemetryPanelExtension[] = [
+  {
+    id: "custom-summary",
+    order: 200,
+    render: ({ telemetry, theme }) => (
+      <div
+        style={{
+          borderRadius: 14,
+          padding: 16,
+          border: "1px solid rgba(148,163,184,0.3)",
+          background: theme === "light" ? "#ffffff" : "#0b1324",
+          color: theme === "light" ? "#0f172a" : "#f8fbff"
+        }}
+      >
+        <h4 style={{ margin: "0 0 10px" }}>Custom Extension Panel</h4>
+        <p style={{ margin: 0 }}>Samples: {telemetry.time.length}</p>
+      </div>
+    )
+  }
+];
+
+export const WithExtensionPanel: Story = {
+  args: {
+    ...Default.args,
+    extensions: extensionPanels
   }
 };

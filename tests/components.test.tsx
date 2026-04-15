@@ -1,6 +1,6 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   LapComparisonChart,
   SpeedChart,
@@ -8,15 +8,6 @@ import {
   ThrottleBrakeChart,
   TrackMap
 } from "../src";
-
-vi.mock("react-chartjs-2", () => ({
-  Line: ({ data }: { data: { datasets: unknown[] } }) => (
-    <div data-testid="line-chart" data-datasets={data.datasets.length} />
-  ),
-  Scatter: ({ data }: { data: { datasets: unknown[] } }) => (
-    <div data-testid="scatter-chart" data-datasets={data.datasets.length} />
-  )
-}));
 
 describe("chart components", () => {
   const time = [0, 1, 2, 3];
@@ -34,22 +25,33 @@ describe("chart components", () => {
         <LapComparisonChart
           driver1={{ time, speed, label: "Driver 1" }}
           driver2={{ time, speed: speed.map((value) => value - 8), label: "Driver 2" }}
+          annotations={[{ type: "corner", time: 1.2, label: "T1" }]}
         />
-        <TrackMap x={x} y={y} />
+        <TrackMap x={x} y={y} annotations={[{ type: "incident", time: 2.5, label: "Spin" }]} />
       </div>
     );
 
-    expect(screen.getAllByTestId("line-chart").length).toBe(3);
-    expect(screen.getAllByTestId("scatter-chart").length).toBe(1);
+    expect(screen.getAllByRole("figure").length).toBe(4);
+    expect(screen.getByLabelText("Telemetry speed chart")).toBeInTheDocument();
+    expect(screen.getByLabelText("Telemetry throttle and brake chart")).toBeInTheDocument();
+    expect(screen.getByLabelText("Telemetry lap comparison chart")).toBeInTheDocument();
+    expect(screen.getByLabelText("Telemetry track map chart")).toBeInTheDocument();
   });
 
-  it("renders telemetry dashboard and synchronized charts", () => {
+  it("renders telemetry dashboard and extension panels", () => {
     render(
       <TelemetryDashboard
         telemetry={{ time, speed, throttle, brake, x, y }}
         comparison={{ time, speed: speed.map((value) => value - 4), label: "Compare" }}
         lapMode="delta"
         sectorMarkers={[1.2, 2.5]}
+        annotations={[{ type: "drs", time: 1.4, label: "DRS" }]}
+        extensions={[
+          {
+            id: "extra-panel",
+            render: () => <div>Extra telemetry panel</div>
+          }
+        ]}
       />
     );
 
@@ -57,5 +59,6 @@ describe("chart components", () => {
     expect(screen.getByText("Driver Inputs")).toBeInTheDocument();
     expect(screen.getByText("Lap Delta")).toBeInTheDocument();
     expect(screen.getByText("Track Position")).toBeInTheDocument();
+    expect(screen.getByText("Extra telemetry panel")).toBeInTheDocument();
   });
 });

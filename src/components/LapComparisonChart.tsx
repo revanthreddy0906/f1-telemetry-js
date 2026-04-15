@@ -1,14 +1,15 @@
 import { useMemo } from "react";
-import { Line } from "react-chartjs-2";
-import {
-  createLineOptions,
-  getCardStyle,
-  getTitleStyle,
-  resolveThemeTokens
-} from "./chartTheme";
+import { createLineOptions, resolveThemeTokens } from "./chartTheme";
 import type { LapComparisonChartProps } from "../types/telemetry";
 import { findNearestIndex, processSeriesData } from "../utils/processing";
-import { createCursorLinePlugin, createSectorMarkersPlugin } from "../utils/plugins";
+import { createLineAnnotationDatasets } from "../utils/annotations";
+import {
+  createAnnotationMarkersPlugin,
+  createCursorLinePlugin,
+  createSectorMarkersPlugin
+} from "../utils/plugins";
+import { TelemetryCard } from "./TelemetryCard";
+import { ClientChart } from "./ClientChart";
 import "../utils/chartSetup";
 
 export const LapComparisonChart = ({
@@ -20,6 +21,7 @@ export const LapComparisonChart = ({
   height = 320,
   className,
   title = "Lap Comparison",
+  ariaLabel,
   processing,
   styleTokens,
   showCursor = true,
@@ -27,7 +29,9 @@ export const LapComparisonChart = ({
   onCursorTimeChange,
   mode = "overlay",
   sectorMarkers,
-  deltaLabel = "Delta (driver2 - driver1)"
+  deltaLabel = "Delta (driver2 - driver1)",
+  annotations,
+  showAnnotations = true
 }: LapComparisonChartProps) => {
   const palette = useMemo(() => resolveThemeTokens(theme, styleTokens), [theme, styleTokens]);
 
@@ -82,6 +86,19 @@ export const LapComparisonChart = ({
   );
   const cursorPoint = cursorIndex >= 0 ? cursorSeries[cursorIndex] : null;
 
+  const annotationSeries = mode === "delta" ? deltaPoints.map((point) => point.y) : processedDriver1.seriesMap.speed;
+  const annotationTime = mode === "delta" ? deltaPoints.map((point) => point.x) : processedDriver1.time;
+  const annotationDatasets = useMemo(
+    () =>
+      createLineAnnotationDatasets(
+        showAnnotations ? annotations : undefined,
+        annotationTime,
+        annotationSeries,
+        palette
+      ),
+    [showAnnotations, annotations, annotationTime, annotationSeries, palette]
+  );
+
   const chartData = useMemo(
     () =>
       mode === "delta"
@@ -109,7 +126,8 @@ export const LapComparisonChart = ({
                       pointRadius: 4
                     }
                   ]
-                : [])
+                : []),
+              ...annotationDatasets
             ]
           }
         : {
@@ -145,7 +163,8 @@ export const LapComparisonChart = ({
                       pointRadius: 4
                     }
                   ]
-                : [])
+                : []),
+              ...annotationDatasets
             ]
           },
     [
@@ -155,6 +174,7 @@ export const LapComparisonChart = ({
       palette,
       cursorPoint,
       showCursor,
+      annotationDatasets,
       driver1Label,
       driver1.label,
       driver1.color,
@@ -189,17 +209,39 @@ export const LapComparisonChart = ({
   const plugins = useMemo(
     () => [
       ...(showCursor ? [createCursorLinePlugin(cursorTime, palette.mutedText)] : []),
-      createSectorMarkersPlugin(sectorMarkers, palette.grid)
+      createSectorMarkersPlugin(sectorMarkers, palette.grid),
+      ...(showAnnotations
+        ? [createAnnotationMarkersPlugin(annotations, palette.grid, palette.mutedText)]
+        : [])
     ],
-    [showCursor, cursorTime, palette.mutedText, palette.grid, sectorMarkers]
+    [
+      showCursor,
+      cursorTime,
+      palette.mutedText,
+      palette.grid,
+      sectorMarkers,
+      showAnnotations,
+      annotations
+    ]
   );
 
   return (
-    <div className={className} style={getCardStyle(theme, height, styleTokens)}>
-      <p style={getTitleStyle(theme, styleTokens)}>{title}</p>
-      <div style={{ height: "calc(100% - 26px)" }}>
-        <Line data={chartData} options={options} plugins={plugins} />
-      </div>
-    </div>
+    <TelemetryCard
+      theme={theme}
+      height={height}
+      className={className}
+      title={title}
+      styleTokens={styleTokens}
+      ariaLabel={ariaLabel}
+      defaultAriaLabel="Telemetry lap comparison chart"
+    >
+      <ClientChart
+        type="line"
+        data={chartData}
+        options={options}
+        plugins={plugins}
+        ariaLabel={ariaLabel ?? "Lap comparison line chart"}
+      />
+    </TelemetryCard>
   );
 };

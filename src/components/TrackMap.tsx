@@ -1,13 +1,10 @@
 import { useMemo } from "react";
-import { Scatter } from "react-chartjs-2";
-import {
-  createTrackMapOptions,
-  getCardStyle,
-  getTitleStyle,
-  resolveThemeTokens
-} from "./chartTheme";
+import { createTrackMapOptions, resolveThemeTokens } from "./chartTheme";
 import type { TrackMapProps } from "../types/telemetry";
 import { findNearestIndex, processSeriesData } from "../utils/processing";
+import { createTrackAnnotationDataset } from "../utils/annotations";
+import { TelemetryCard } from "./TelemetryCard";
+import { ClientChart } from "./ClientChart";
 import "../utils/chartSetup";
 
 export const TrackMap = ({
@@ -18,11 +15,14 @@ export const TrackMap = ({
   height = 360,
   className,
   title = "Track Map",
+  ariaLabel,
   processing,
   styleTokens,
   showCursor = true,
   cursorTime,
-  onCursorTimeChange
+  onCursorTimeChange,
+  annotations,
+  showAnnotations = true
 }: TrackMapProps) => {
   const palette = useMemo(() => resolveThemeTokens(theme, styleTokens), [theme, styleTokens]);
 
@@ -51,6 +51,17 @@ export const TrackMap = ({
   const cursorIndex = findNearestIndex(processed.time, cursorTime);
   const cursorPoint = cursorIndex >= 0 ? points[cursorIndex] : null;
 
+  const annotationDatasets = useMemo(
+    () =>
+      createTrackAnnotationDataset(
+        showAnnotations ? annotations : undefined,
+        points,
+        processed.time,
+        palette
+      ),
+    [showAnnotations, annotations, points, processed.time, palette]
+  );
+
   const data = useMemo(
     () => ({
       datasets: [
@@ -76,10 +87,11 @@ export const TrackMap = ({
                 pointRadius: 5
               }
             ]
-          : [])
+          : []),
+        ...annotationDatasets
       ]
     }),
-    [points, palette, cursorPoint, showCursor]
+    [points, palette, cursorPoint, showCursor, annotationDatasets]
   );
 
   const options = useMemo(() => {
@@ -102,11 +114,21 @@ export const TrackMap = ({
   }, [palette, onCursorTimeChange, processed.time]);
 
   return (
-    <div className={className} style={getCardStyle(theme, height, styleTokens)}>
-      <p style={getTitleStyle(theme, styleTokens)}>{title}</p>
-      <div style={{ height: "calc(100% - 26px)" }}>
-        <Scatter data={data} options={options} />
-      </div>
-    </div>
+    <TelemetryCard
+      theme={theme}
+      height={height}
+      className={className}
+      title={title}
+      styleTokens={styleTokens}
+      ariaLabel={ariaLabel}
+      defaultAriaLabel="Telemetry track map chart"
+    >
+      <ClientChart
+        type="scatter"
+        data={data}
+        options={options}
+        ariaLabel={ariaLabel ?? "Track map scatter chart"}
+      />
+    </TelemetryCard>
   );
 };

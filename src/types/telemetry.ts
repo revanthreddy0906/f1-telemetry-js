@@ -1,7 +1,10 @@
-export type ThemeMode = "light" | "dark";
+import type { ReactNode } from "react";
 
+export type ThemeMode = "light" | "dark" | "high-contrast";
 export type DownsampleStrategy = "every-nth" | "min-max";
 export type LapComparisonMode = "overlay" | "delta";
+export type TelemetryAnnotationType = "corner" | "drs" | "incident";
+export type TelemetrySeverity = "low" | "medium" | "high";
 
 export interface TelemetryStyleTokens {
   background: string;
@@ -14,6 +17,7 @@ export interface TelemetryStyleTokens {
   accent: string;
   danger: string;
   shadow: string;
+  focusRing: string;
 }
 
 export interface TelemetryWindow {
@@ -33,11 +37,29 @@ export interface CursorSyncProps {
   onCursorTimeChange?: (value: number | null) => void;
 }
 
-export interface ChartContainerProps {
+export interface TelemetryAnnotation {
+  id?: string;
+  type: TelemetryAnnotationType;
+  time?: number;
+  x?: number;
+  y?: number;
+  label?: string;
+  description?: string;
+  severity?: TelemetrySeverity;
+  color?: string;
+}
+
+export interface AnnotationProps {
+  annotations?: TelemetryAnnotation[];
+  showAnnotations?: boolean;
+}
+
+export interface ChartContainerProps extends AnnotationProps {
   theme?: ThemeMode;
   height?: number;
   className?: string;
   title?: string;
+  ariaLabel?: string;
   processing?: DataProcessingOptions;
   styleTokens?: Partial<TelemetryStyleTokens>;
 }
@@ -94,11 +116,31 @@ export interface FormattedTelemetry {
 export type RawTelemetryPoint = Record<string, unknown>;
 export type RawTelemetryInput = RawTelemetryPoint[] | Record<string, unknown>;
 
+export interface TelemetryPanelRenderContext {
+  telemetry: FormattedTelemetry;
+  comparison?: DriverLapTelemetry;
+  lapMode: LapComparisonMode;
+  sectorMarkers?: number[];
+  annotations?: TelemetryAnnotation[];
+  theme: ThemeMode;
+  styleTokens?: Partial<TelemetryStyleTokens>;
+  processing?: DataProcessingOptions;
+  cursorTime: number | null;
+  setCursorTime: (value: number | null) => void;
+}
+
+export interface TelemetryPanelExtension {
+  id: string;
+  order?: number;
+  render: (context: TelemetryPanelRenderContext) => ReactNode;
+}
+
 export interface TelemetryDashboardProps {
   telemetry: FormattedTelemetry;
   comparison?: DriverLapTelemetry;
   lapMode?: LapComparisonMode;
   sectorMarkers?: number[];
+  annotations?: TelemetryAnnotation[];
   theme?: ThemeMode;
   styleTokens?: Partial<TelemetryStyleTokens>;
   processing?: DataProcessingOptions;
@@ -106,6 +148,10 @@ export interface TelemetryDashboardProps {
   className?: string;
   chartHeight?: number;
   trackMapHeight?: number;
+  panelGap?: number;
+  minPanelWidth?: number;
+  includeDefaultPanels?: boolean;
+  extensions?: TelemetryPanelExtension[];
 }
 
 export interface TelemetryValidationIssue {
