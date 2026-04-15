@@ -1,16 +1,18 @@
 # f1-telemetry-js
 
-Reusable React + TypeScript component library for visualizing Formula 1 telemetry data with modern, responsive charts.
+Reusable React + TypeScript component library for Formula 1 telemetry visualization.
 
-## Features
+## Highlights
 
-- Speed, throttle/brake, lap comparison, and track map components
-- `TelemetryDashboard` composite with synchronized cursor across charts
-- Lap delta mode (`driver2 - driver1`) + sector markers
-- Built-in large dataset processing (windowing + downsampling)
-- Theme customization via style tokens and CSS variables
-- Validation utilities for telemetry integrity
-- ESM + CJS + type definitions in `dist/`
+- Built-in charts: speed, throttle/brake, lap comparison, track map
+- `TelemetryDashboard` with synchronized cross-chart cursor
+- Annotation overlays (`corner`, `drs`, `incident`)
+- Plugin-style dashboard extension API
+- FastF1, OpenF1, and CSV adapters
+- SSR-safe lazy chart rendering for Next.js
+- Accessibility upgrades: ARIA labels, keyboard focus, high-contrast theme
+- Large dataset processing + CI performance benchmark guardrails
+- Changeset + API diff semver guardrails
 
 ## Installation
 
@@ -21,213 +23,142 @@ npm install f1-telemetry-js chart.js react-chartjs-2
 ## Quick usage
 
 ```tsx
-import {
-  SpeedChart,
-  ThrottleBrakeChart,
-  LapComparisonChart,
-  TrackMap,
-  TelemetryDashboard,
-  formatTelemetry
-} from "f1-telemetry-js";
+import { TelemetryDashboard, fromCsvTelemetry } from "f1-telemetry-js";
 
-const rawTelemetry = [
-  { time: 0, speed: 120, throttle: 32, brake: 0, x: 10, y: 20 },
-  { time: 1, speed: 160, throttle: 65, brake: 0, x: 18, y: 25 },
-  { time: 2, speed: 205, throttle: 82, brake: 8, x: 28, y: 30 }
-];
-
-const telemetry = formatTelemetry(rawTelemetry);
-
-export const TelemetryPage = () => (
-  <div style={{ display: "grid", gap: 16 }}>
-    <SpeedChart data={{ time: telemetry.time, speed: telemetry.speed }} />
-    <ThrottleBrakeChart time={telemetry.time} throttle={telemetry.throttle} brake={telemetry.brake} />
-    <LapComparisonChart
-      driver1={{ time: telemetry.time, speed: telemetry.speed, label: "Driver 1" }}
-      driver2={{ time: telemetry.time, speed: telemetry.speed.map((v) => v - 5), label: "Driver 2" }}
-    />
-    <TrackMap x={telemetry.x} y={telemetry.y} time={telemetry.time} />
-    <TelemetryDashboard
-      telemetry={telemetry}
-      comparison={{ time: telemetry.time, speed: telemetry.speed.map((v) => v - 4), label: "Driver 2" }}
-      lapMode="delta"
-      sectorMarkers={[12.8, 25.5, 41.2]}
-      processing={{ maxPoints: 600, downsampleStrategy: "min-max" }}
-    />
-  </div>
-);
-```
-
-## Demo snippet
-
-```tsx
-import { TelemetryDashboard } from "f1-telemetry-js";
-
-const telemetry = {
-  time: [0, 1, 2, 3, 4],
-  speed: [120, 140, 190, 225, 210],
-  throttle: [20, 45, 88, 95, 70],
-  brake: [0, 0, 4, 0, 25],
-  x: [10, 20, 35, 42, 54],
-  y: [15, 24, 33, 28, 22]
-};
+const telemetry = fromCsvTelemetry(`time,speed,throttle,brake,x,y
+0,122,28,0,12,8
+1,150,55,0,18,12
+2,188,80,4,24,16
+3,215,92,0,30,18`);
 
 export function App() {
   return (
     <TelemetryDashboard
       telemetry={telemetry}
-      comparison={{ time: telemetry.time, speed: telemetry.speed.map((s) => s - 8), label: "LEC" }}
-      lapMode="overlay"
-      theme="dark"
-      processing={{ maxPoints: 300 }}
-      sectorMarkers={[1.4, 2.9, 4.1]}
+      lapMode="delta"
+      annotations={[
+        { type: "corner", time: 1.2, label: "T1" },
+        { type: "drs", time: 2.3, label: "DRS" },
+        { type: "incident", time: 2.8, label: "Lock-up" }
+      ]}
+      processing={{ maxPoints: 500, downsampleStrategy: "min-max" }}
     />
   );
 }
 ```
 
-## Props overview
-
-All chart components share:
-
-| Prop | Type | Description |
-| --- | --- | --- |
-| `theme` | `"dark" \| "light"` | Selects default theme |
-| `styleTokens` | `Partial<TelemetryStyleTokens>` | Per-component token overrides |
-| `processing` | `DataProcessingOptions` | `{ maxPoints, downsampleStrategy, window }` |
-| `showCursor` | `boolean` | Toggle shared cursor line/marker |
-| `cursorTime` | `number \| null` | External synchronized cursor time |
-| `onCursorTimeChange` | `(time) => void` | Cursor sync callback |
-| `height` | `number` | Card height |
-| `title` | `string` | Chart title |
-| `className` | `string` | Optional wrapper class |
-
-### `SpeedChart`
-
-| Prop | Type | Required |
-| --- | --- | --- |
-| `time` | `number[]` | Yes* |
-| `speed` | `number[]` | Yes* |
-| `data` | `{ time: number[]; speed: number[] }` | No |
-
-\*Use either `time` + `speed`, or `data`.
-
-### `ThrottleBrakeChart`
-
-| Prop | Type | Required |
-| --- | --- | --- |
-| `time` | `number[]` | Yes |
-| `throttle` | `number[]` | Yes |
-| `brake` | `number[]` | Yes |
-
-### `LapComparisonChart`
-
-| Prop | Type | Required | Description |
-| --- | --- | --- | --- |
-| `driver1` | `{ time, speed, label?, color? }` | Yes | First driver series |
-| `driver2` | `{ time, speed, label?, color? }` | Yes | Second driver series |
-| `mode` | `"overlay" \| "delta"` | No | Delta = `driver2 - driver1` |
-| `sectorMarkers` | `number[]` | No | Vertical sector reference lines |
-| `deltaLabel` | `string` | No | Custom label for delta dataset |
-
-### `TrackMap`
-
-| Prop | Type | Required |
-| --- | --- | --- |
-| `x` | `number[]` | Yes |
-| `y` | `number[]` | Yes |
-| `time` | `number[]` | No |
-
-### `TelemetryDashboard`
-
-| Prop | Type | Required | Description |
-| --- | --- | --- | --- |
-| `telemetry` | `FormattedTelemetry` | Yes | Main telemetry payload |
-| `comparison` | `DriverLapTelemetry` | No | Driver 2 for lap chart |
-| `lapMode` | `"overlay" \| "delta"` | No | Lap chart mode |
-| `sectorMarkers` | `number[]` | No | Sector markers in lap chart |
-| `syncCursor` | `boolean` | No | Sync hover cursor across all charts |
-| `chartHeight` | `number` | No | Height for line charts |
-| `trackMapHeight` | `number` | No | Height for track map |
-
-## Utility functions
-
-### `formatTelemetry(data)`
-
-Converts raw telemetry JSON into:
+## Adapters
 
 ```ts
-{
-  time: number[];
-  speed: number[];
-  throttle: number[];
-  brake: number[];
-  x: number[];
-  y: number[];
-}
+import { fromFastF1Telemetry, fromOpenF1Telemetry, fromCsvTelemetry } from "f1-telemetry-js";
+
+const telemetryA = fromFastF1Telemetry(fastF1Payload);
+const telemetryB = fromOpenF1Telemetry(openF1Payload);
+const telemetryC = fromCsvTelemetry(csvText);
 ```
 
-Supported raw shapes:
-1. Array of telemetry points
-2. Object containing telemetry arrays
-3. Object with nested arrays (`telemetry`, `data`, `samples`, `points`, etc.)
-
-### `validateTelemetry(data)`
-
-Returns:
+## Plugin extension API
 
 ```ts
-{
-  isValid: boolean;
-  issues: Array<{ code: string; message: string }>;
-}
+import { registerTelemetryPanel } from "f1-telemetry-js";
+
+registerTelemetryPanel({
+  id: "custom-energy-panel",
+  order: 100,
+  render: ({ telemetry, theme }) => (
+    <div style={{ padding: 16, borderRadius: 12 }}>
+      <h4>Energy usage ({theme})</h4>
+      <p>Samples: {telemetry.time.length}</p>
+    </div>
+  )
+});
 ```
 
-### `processSeriesData({ time, seriesMap, processing })`
+You can also pass per-instance dashboard extensions with the `extensions` prop.
 
-Processes telemetry for chart rendering:
-- sanitizes values
-- trims mismatched lengths
-- applies time window filtering
-- downsamples with `every-nth` or `min-max`
+## Core components
+
+- `SpeedChart`
+- `ThrottleBrakeChart`
+- `LapComparisonChart`
+- `TrackMap`
+- `TelemetryDashboard`
+
+Common chart props:
+
+| Prop | Description |
+| --- | --- |
+| `theme` | `"dark" \| "light" \| "high-contrast"` |
+| `ariaLabel` | Accessible chart label |
+| `annotations` | Annotation overlays |
+| `processing` | Windowing/downsampling config |
+| `showCursor`, `cursorTime`, `onCursorTimeChange` | Cursor synchronization |
+| `styleTokens` | Theme token overrides |
+
+## Annotation overlays
+
+`annotations` accepts:
+
+```ts
+type TelemetryAnnotation = {
+  type: "corner" | "drs" | "incident";
+  time?: number;
+  x?: number;
+  y?: number;
+  label?: string;
+  severity?: "low" | "medium" | "high";
+  color?: string;
+};
+```
+
+Line charts use `time`; track maps support `time` or direct `x/y`.
+
+## SSR-safe rendering (Next.js)
+
+Charts render through a client-side lazy loader internally, so server rendering avoids direct chart hydration issues.
+
+See template: `examples/next-template/`.
 
 ## Theme customization
 
-You can override tokens globally using CSS variables:
+You can override via `styleTokens` or CSS variables:
 
 ```css
 :root {
-  --f1-telemetry-background: #0a0f1f;
   --f1-telemetry-primary: #5db8ff;
-  --f1-telemetry-accent: #43d9a3;
+  --f1-telemetry-accent: #42e2a8;
+  --f1-telemetry-focus-ring: 0 0 0 3px rgba(93, 184, 255, 0.5);
 }
 ```
 
-Or generate inline CSS variables with:
+## Utility APIs
 
-```ts
-import { createTelemetryCssVariables } from "f1-telemetry-js";
+- `formatTelemetry(data)`
+- `validateTelemetry(data)`
+- `processSeriesData({ ... })`
+- `findNearestIndex(values, target)`
+- `createLineAnnotationDatasets(...)`
+- `createTrackAnnotationDataset(...)`
 
-const style = createTelemetryCssVariables({ primary: "#3fa9f5", danger: "#f5537b" });
-```
+## Examples
 
-## Storybook
+- `examples/vite-template`
+- `examples/next-template`
 
-```bash
-npm run storybook
-```
-
-Stories include telemetry-heavy examples, theme toggle toolbar, and dashboard variants.
-
-## Testing
+## Development commands
 
 ```bash
+npm run lint
 npm run test:run
+npm run build
+npm run storybook
+npm run benchmark
 ```
 
-Includes utility validation/format tests and component render tests.
+## Semver guardrails
 
-## CI/CD and releases
+- `npm run semver:changeset` validates releasable changes include a changeset.
+- `npm run api:check` verifies public API matches `api/public-api.d.ts`.
+- `npm run api:update` refreshes API baseline intentionally.
 
-- `CI` workflow runs lint, tests, and build on PRs/pushes.
-- `Release` workflow uses Changesets to generate changelog entries and publish to npm when release changes are merged to `main`.
+CI enforces these checks before release workflows proceed.

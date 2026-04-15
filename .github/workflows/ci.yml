@@ -30,3 +30,13 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Benchmark
+        run: npm run benchmark:ci
+
+      - name: API diff check
+        run: npm run api:check
+
+      - name: Changeset guard
+        if: ${{ github.event_name == 'pull_request' }}
+        run: npm run semver:changeset
