@@ -36,6 +36,7 @@ export {
 } from "./utils/annotations";
 export { registerTelemetryPanel, unregisterTelemetryPanel, clearTelemetryPanels, getTelemetryPanels } from "./extensions/registry";
 export * from "./adapters";
+export * from "./constants";
 
 export type {
   ThemeMode,

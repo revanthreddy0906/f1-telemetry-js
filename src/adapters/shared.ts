@@ -81,3 +81,35 @@ export const pickField = <T extends Record<string, unknown>>(
   }
   return undefined;
 };
+
+/**
+ * Parse F1 lap time strings like "1:23.456" or "1:02:03.456" into seconds.
+ */
+export const parseLapTimeString = (timeStr: string): number | null => {
+  const normalized = timeStr.trim();
+  if (!normalized) {
+    return null;
+  }
+
+  const segments = normalized.split(":");
+  if (segments.length === 2) {
+    const minutes = Number(segments[0]);
+    const seconds = Number(segments[1]);
+    if (!Number.isFinite(minutes) || !Number.isFinite(seconds)) {
+      return null;
+    }
+    return minutes * 60 + seconds;
+  }
+
+  if (segments.length === 3) {
+    const hours = Number(segments[0]);
+    const minutes = Number(segments[1]);
+    const seconds = Number(segments[2]);
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes) || !Number.isFinite(seconds)) {
+      return null;
+    }
+    return hours * 3_600 + minutes * 60 + seconds;
+  }
+
+  return null;
+};
