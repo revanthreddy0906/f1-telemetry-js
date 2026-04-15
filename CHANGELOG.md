@@ -32,6 +32,19 @@ All notable changes to this project will be documented in this file.
   - `benchmark` / `benchmark:ci`
   - `api:check` / `api:update`
   - `semver:changeset`
+- New pure TypeScript computation utilities:
+  - `normalizeDistance`
+  - `computeLapTimes`
+  - `computeSectorTimes`
+  - `computeSpeedDelta`
+  - `interpolateTelemetry`
+  - `computeTimeDelta`
+  - `detectOvertakes`
+  - `classifyTyreCompound`
+- New telemetry export utilities:
+  - `mergeTelemetry`
+  - `exportToJson`
+  - `exportToCsv`
 
 ### Changed
 - Accessibility improvements across chart cards (focus ring + ARIA support).
@@ -42,4 +55,5 @@ All notable changes to this project will be documented in this file.
 
 ### Internal
 - Expanded test suite with `tests/new-components.test.tsx`.
+- Added `tests/computations.test.ts` for utility-layer coverage.
 - Updated public API baseline at `api/public-api.d.ts`.
