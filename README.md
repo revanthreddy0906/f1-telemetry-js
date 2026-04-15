@@ -17,7 +17,7 @@ Reusable React + TypeScript component library for Formula 1 telemetry visualizat
 ## Installation
 
 ```bash
-npm install @revanthreddy0906/f1-telemetry-js chart.js react-chartjs-2
+npm install f1-telemetry-js chart.js react-chartjs-2
 ```
 
 ## Quick usage
