@@ -1,5 +1,5 @@
 {
-  "name": "@revanthreddy0906/f1-telemetry-js",
+  "name": "f1-telemetry-js",
   "version": "1.1.0",
   "description": "Reusable React + TypeScript telemetry visualization components for Formula 1 data.",
   "license": "MIT",
