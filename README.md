@@ -83,6 +83,16 @@ You can also pass per-instance dashboard extensions with the `extensions` prop.
 - `LapComparisonChart`
 - `TrackMap`
 - `TelemetryDashboard`
+- `GearChart`
+- `EnergyChart`
+- `TyreStrategyTimeline`
+- `GapChart`
+- `PositionChart`
+- `MiniSectors`
+- `SpeedHeatmapTrackMap`
+- `RadarChart`
+- `PitStopTimeline`
+- `WeatherWidget`
 
 Common chart props:
 
