@@ -60,18 +60,34 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
           if [ -z "$NODE_AUTH_TOKEN" ]; then
             echo "::error::NPM_TOKEN is missing. Add a publish token in repository secrets."
             exit 1
           fi
           npm whoami >/dev/null 2>&1 || {
             echo "::error::NPM_TOKEN is invalid for npm registry auth."
-            echo "::error::Use an npm token with publish access for package @revanthreddy0906/f1-telemetry-js."
+            echo "::error::Use an npm token with publish access for package ${PACKAGE_NAME}."
             exit 1
           }
 
-      - name: Create release PR / publish
+      - name: Check publishable version
+        id: publishable
         if: steps.release_toggle.outputs.enabled == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version >/dev/null 2>&1; then
+            echo "publishable=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::${PACKAGE_NAME}@${PACKAGE_VERSION} is already published. Skipping publish."
+          else
+            echo "publishable=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create release PR / publish
+        if: steps.release_toggle.outputs.enabled == 'true' && steps.publishable.outputs.publishable == 'true'
         uses: changesets/action@v1
         with:
           version: npm run version-packages

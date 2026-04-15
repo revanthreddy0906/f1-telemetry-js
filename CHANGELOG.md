@@ -73,6 +73,7 @@ All notable changes to this project will be documented in this file.
 - Storybook coverage expanded with dedicated stories for all new components.
 - CI/release workflows now enforce benchmarks and API/changeset checks.
 - Package name changed to scoped npm name: `@revanthreddy0906/f1-telemetry-js` (README/examples/release messaging updated).
+- Release workflow now skips npm publish when the current package version is already on npm to avoid repeated `E403` failures on reruns.
 
 ### Internal
 
