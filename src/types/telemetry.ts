@@ -274,6 +274,64 @@ export interface WeatherWidgetProps extends ChartContainerProps, CursorSyncProps
   compactMode?: boolean;
 }
 
+export interface LapTime {
+  lap: number;
+  startTime: number;
+  endTime: number;
+  duration: number;
+}
+
+export interface SectorSplit {
+  sector: number;
+  duration: number;
+}
+
+export interface LapSectors {
+  lap: number;
+  sectors: SectorSplit[];
+  total: number;
+}
+
+export interface DeltaPoint {
+  time: number;
+  delta: number;
+}
+
+export interface TimeDeltaPoint {
+  distance: number;
+  timeDelta: number;
+}
+
+export type DistanceBasedTelemetry = FormattedTelemetry;
+
+export interface DriverPositionHistory {
+  driver: string;
+  positions: number[];
+}
+
+export interface OvertakeEvent {
+  lap: number;
+  overtaker: string;
+  overtaken: string;
+  newPosition: number;
+}
+
+export interface TyreClassification {
+  compound: TyreCompound;
+  confidence: number;
+  degradationRate: number;
+  avgLapTime: number;
+}
+
+export type JsonExportFormat = "rows" | "columns";
+
+export interface CsvExportOptions {
+  delimiter?: "," | ";" | "\t";
+  includeHeader?: boolean;
+  precision?: number;
+  channels?: Array<keyof FormattedTelemetry>;
+}
+
 export interface FormattedTelemetry {
   time: number[];
   speed: number[];

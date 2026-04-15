@@ -16,6 +16,17 @@ export { WeatherWidget } from "./components/WeatherWidget";
 
 export { formatTelemetry } from "./utils/formatTelemetry";
 export { processSeriesData, findNearestIndex } from "./utils/processing";
+export {
+  normalizeDistance,
+  computeLapTimes,
+  computeSectorTimes,
+  computeSpeedDelta,
+  interpolateTelemetry,
+  computeTimeDelta,
+  detectOvertakes,
+  classifyTyreCompound
+} from "./utils/computations";
+export { mergeTelemetry, exportToJson, exportToCsv } from "./utils/exporters";
 export { validateTelemetry } from "./utils/validation";
 export { createTelemetryCssVariables, telemetryCssVariables } from "./components/chartTheme";
 export {
@@ -67,6 +78,17 @@ export type {
   PitStopTimelineProps,
   WeatherDataPoint,
   WeatherWidgetProps,
+  LapTime,
+  SectorSplit,
+  LapSectors,
+  DeltaPoint,
+  TimeDeltaPoint,
+  DistanceBasedTelemetry,
+  DriverPositionHistory,
+  OvertakeEvent,
+  TyreClassification,
+  JsonExportFormat,
+  CsvExportOptions,
   TelemetryPanelRenderContext,
   TelemetryPanelExtension,
   TelemetryDashboardProps,
