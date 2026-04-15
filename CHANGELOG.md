@@ -66,3 +66,7 @@ All notable changes to this project will be documented in this file.
 - Expanded test suite with `tests/new-components.test.tsx`.
 - Added `tests/computations.test.ts` for utility-layer coverage.
 - Updated public API baseline at `api/public-api.d.ts`.
+- Hardened GitHub Actions workflows:
+  - Upgraded `actions/checkout` and `actions/setup-node` to `v5`
+  - Updated CI/release runtime to Node.js 22
+  - Added npm auth preflight step in release workflow for clearer publish failures

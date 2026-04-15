@@ -16,14 +16,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
           registry-url: https://registry.npmjs.org
           cache: npm
 
@@ -44,6 +44,20 @@ jobs:
 
       - name: API diff check
         run: npm run api:check
+
+      - name: Validate npm publish auth
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::error::NPM_TOKEN is missing. Add a publish token in repository secrets."
+            exit 1
+          fi
+          npm whoami >/dev/null 2>&1 || {
+            echo "::error::NPM_TOKEN is invalid for npm registry auth."
+            echo "::error::Use an npm token with publish access for package f1-telemetry-js."
+            exit 1
+          }
 
       - name: Create release PR / publish
         uses: changesets/action@v1
