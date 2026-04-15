@@ -73,6 +73,12 @@ const getPointsFromColumns = (input: Record<string, unknown>): RawTelemetryPoint
   }));
 };
 
+/**
+ * Normalize raw telemetry payloads into aligned numeric series.
+ *
+ * Accepts row arrays, nested array payloads, or column-oriented objects and
+ * always returns a `FormattedTelemetry` shape.
+ */
 export const formatTelemetry = (data: RawTelemetryInput): FormattedTelemetry => {
   const formatted: FormattedTelemetry = {
     time: [],

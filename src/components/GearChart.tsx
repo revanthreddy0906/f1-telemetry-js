@@ -7,7 +7,9 @@ import { createAnnotationMarkersPlugin, createCursorLinePlugin } from "../utils/
 import { createLineAnnotationDatasets } from "../utils/annotations";
 import { TelemetryCard } from "./TelemetryCard";
 import { ClientChart } from "./ClientChart";
-import "../utils/chartSetup";
+import { ensureChartSetup } from "../utils/chartSetup";
+
+ensureChartSetup();
 
 const createGearBandPlugin = (enabled: boolean, color: string): Plugin<"line"> => ({
   id: "f1-telemetry-gear-bands",

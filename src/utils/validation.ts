@@ -81,6 +81,11 @@ export const alignSeriesLengths = (
   };
 };
 
+/**
+ * Validate telemetry structure and values.
+ *
+ * Checks required channels, finite numeric values, and channel-length alignment.
+ */
 export const validateTelemetry = (
   telemetry: Partial<FormattedTelemetry>,
   context = "Telemetry"

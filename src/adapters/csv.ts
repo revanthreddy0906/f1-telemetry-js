@@ -69,6 +69,9 @@ const maybeNumber = (value: string): number | string => {
   return Number.isFinite(parsed) ? parsed : value;
 };
 
+/**
+ * Parse CSV telemetry text into normalized telemetry arrays.
+ */
 export const fromCsvTelemetry = (csv: string, options: CsvTelemetryOptions = {}): FormattedTelemetry => {
   const rows = csv
     .split(/\r?\n/)

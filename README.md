@@ -1,18 +1,12 @@
-# @revanthreddy0906/f1-telemetry-js
+# f1-telemetry-js
+
+[![npm version](https://img.shields.io/npm/v/f1-telemetry-js.svg)](https://www.npmjs.com/package/f1-telemetry-js)
+[![npm downloads](https://img.shields.io/npm/dm/f1-telemetry-js.svg)](https://www.npmjs.com/package/f1-telemetry-js)
+[![bundle size](https://img.shields.io/bundlephobia/minzip/f1-telemetry-js)](https://bundlephobia.com/package/f1-telemetry-js)
+[![license](https://img.shields.io/npm/l/f1-telemetry-js.svg)](https://github.com/revanthreddy0906/f1-telemetry-js/blob/main/LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue.svg)](https://www.typescriptlang.org/)
 
 Reusable React + TypeScript component library for Formula 1 telemetry visualization.
-
-## Highlights
-
-- Built-in charts: speed, throttle/brake, lap comparison, track map
-- `TelemetryDashboard` with synchronized cross-chart cursor
-- Annotation overlays (`corner`, `drs`, `incident`)
-- Plugin-style dashboard extension API
-- FastF1, OpenF1, and CSV adapters
-- SSR-safe lazy chart rendering for Next.js
-- Accessibility upgrades: ARIA labels, keyboard focus, high-contrast theme
-- Large dataset processing + CI performance benchmark guardrails
-- Changeset + API diff semver guardrails
 
 ## Installation
 
@@ -20,10 +14,10 @@ Reusable React + TypeScript component library for Formula 1 telemetry visualizat
 npm install f1-telemetry-js chart.js react-chartjs-2
 ```
 
-## Quick usage
+## Quick Usage
 
 ```tsx
-import { TelemetryDashboard, fromCsvTelemetry } from "@revanthreddy0906/f1-telemetry-js";
+import { SpeedChart, fromCsvTelemetry } from "f1-telemetry-js";
 
 const telemetry = fromCsvTelemetry(`time,speed,throttle,brake,x,y
 0,122,28,0,12,8
@@ -32,51 +26,11 @@ const telemetry = fromCsvTelemetry(`time,speed,throttle,brake,x,y
 3,215,92,0,30,18`);
 
 export function App() {
-  return (
-    <TelemetryDashboard
-      telemetry={telemetry}
-      lapMode="delta"
-      annotations={[
-        { type: "corner", time: 1.2, label: "T1" },
-        { type: "drs", time: 2.3, label: "DRS" },
-        { type: "incident", time: 2.8, label: "Lock-up" }
-      ]}
-      processing={{ maxPoints: 500, downsampleStrategy: "min-max" }}
-    />
-  );
+  return <SpeedChart time={telemetry.time} speed={telemetry.speed} />;
 }
 ```
 
-## Adapters
-
-```ts
-import { fromFastF1Telemetry, fromOpenF1Telemetry, fromCsvTelemetry } from "@revanthreddy0906/f1-telemetry-js";
-
-const telemetryA = fromFastF1Telemetry(fastF1Payload);
-const telemetryB = fromOpenF1Telemetry(openF1Payload);
-const telemetryC = fromCsvTelemetry(csvText);
-```
-
-## Plugin extension API
-
-```ts
-import { registerTelemetryPanel } from "@revanthreddy0906/f1-telemetry-js";
-
-registerTelemetryPanel({
-  id: "custom-energy-panel",
-  order: 100,
-  render: ({ telemetry, theme }) => (
-    <div style={{ padding: 16, borderRadius: 12 }}>
-      <h4>Energy usage ({theme})</h4>
-      <p>Samples: {telemetry.time.length}</p>
-    </div>
-  )
-});
-```
-
-You can also pass per-instance dashboard extensions with the `extensions` prop.
-
-## Core components
+## Core Charts
 
 - `SpeedChart`
 - `ThrottleBrakeChart`
@@ -93,82 +47,121 @@ You can also pass per-instance dashboard extensions with the `extensions` prop.
 - `RadarChart`
 - `PitStopTimeline`
 - `WeatherWidget`
+- `TelemetryPlayground`
 
-Common chart props:
+## Hooks
 
-| Prop | Description |
-| --- | --- |
-| `theme` | `"dark" \| "light" \| "high-contrast"` |
-| `ariaLabel` | Accessible chart label |
-| `annotations` | Annotation overlays |
-| `processing` | Windowing/downsampling config |
-| `showCursor`, `cursorTime`, `onCursorTimeChange` | Cursor synchronization |
-| `styleTokens` | Theme token overrides |
+```tsx
+import { useTelemetry, useCursorSync, SpeedChart, ThrottleBrakeChart } from "f1-telemetry-js";
 
-## Annotation overlays
+function Dashboard({ rawData }: { rawData: unknown }) {
+  const { telemetry } = useTelemetry({ data: rawData });
+  const { cursorProps } = useCursorSync();
 
-`annotations` accepts:
+  if (!telemetry) return null;
 
-```ts
-type TelemetryAnnotation = {
-  type: "corner" | "drs" | "incident";
-  time?: number;
-  x?: number;
-  y?: number;
-  label?: string;
-  severity?: "low" | "medium" | "high";
-  color?: string;
-};
+  return (
+    <>
+      <SpeedChart time={telemetry.time} speed={telemetry.speed} {...cursorProps} />
+      <ThrottleBrakeChart
+        time={telemetry.time}
+        throttle={telemetry.throttle}
+        brake={telemetry.brake}
+        {...cursorProps}
+      />
+    </>
+  );
+}
 ```
 
-Line charts use `time`; track maps support `time` or direct `x/y`.
+Available hooks:
 
-## SSR-safe rendering (Next.js)
+- `useTelemetry`
+- `useCursorSync`
+- `useAutoTheme`
+- `useChartExport`
+- `TelemetryProvider` / `useTelemetryContext`
 
-Charts render through a client-side lazy loader internally, so server rendering avoids direct chart hydration issues.
+## Headless Core (`f1-telemetry-js/core`)
 
-See template: `examples/next-template/`.
+Use the core subpath when you only need parsing, processing, computations, and constants (no React components):
 
-## Theme customization
-
-You can override via `styleTokens` or CSS variables:
-
-```css
-:root {
-  --f1-telemetry-primary: #5db8ff;
-  --f1-telemetry-accent: #42e2a8;
-  --f1-telemetry-focus-ring: 0 0 0 3px rgba(93, 184, 255, 0.5);
-}
+```ts
+import { fromCsvTelemetry, TEAM_COLORS, computeTimeDelta } from "f1-telemetry-js/core";
 ```
 
 ## Utility APIs
 
-- `formatTelemetry(data)`
-- `validateTelemetry(data)`
-- `processSeriesData({ ... })`
-- `findNearestIndex(values, target)`
-- `createLineAnnotationDatasets(...)`
-- `createTrackAnnotationDataset(...)`
+- `formatTelemetry`
+- `validateTelemetry`
+- `processSeriesData`
+- `findNearestIndex`
+- `createLineAnnotationDatasets`
+- `createTrackAnnotationDataset`
+- `normalizeDistance`
+- `computeLapTimes`
+- `computeSectorTimes`
+- `computeSpeedDelta`
+- `interpolateTelemetry`
+- `computeTimeDelta`
+- `detectOvertakes`
+- `classifyTyreCompound`
+- `mergeTelemetry`
+- `exportToJson`
+- `exportToCsv`
 
-## Examples
+## Plugin Extension API
 
-- `examples/vite-template`
-- `examples/next-template`
+```ts
+import { registerTelemetryPanel, telemetryStatsPanel } from "f1-telemetry-js";
 
-## Development commands
+registerTelemetryPanel(telemetryStatsPanel);
+```
+
+Built-in extension panels:
+
+- `telemetryStatsPanel`
+- `gearDistributionPanel`
+- `lapSummaryPanel`
+
+## React Native
+
+`f1-telemetry-js` components use Chart.js (HTML canvas), which doesn't run in React Native.
+
+**For React Native projects**, use the headless core for data processing:
+
+```ts
+import { fromOpenF1Telemetry, TEAM_COLORS, computeTimeDelta } from "f1-telemetry-js/core";
+```
+
+Then render visuals with a React Native charting library (`victory-native`, `react-native-chart-kit`, or `react-native-skia`).
+
+## Vue.js
+
+Use the headless core for data processing in Vue apps:
+
+```ts
+import { fromCsvTelemetry, formatTelemetry, TEAM_COLORS } from "f1-telemetry-js/core";
+```
+
+Pair with Vue charting libraries like `vue-chartjs` or ECharts wrappers.
+
+## Svelte / SvelteKit
+
+Use the headless core for data processing:
+
+```ts
+import { fromFastF1Telemetry, computeLapTimes, TRACKS } from "f1-telemetry-js/core";
+```
+
+Pair with a Svelte charting library such as `layercake` or `pancake`.
+
+## Development
 
 ```bash
 npm run lint
 npm run test:run
 npm run build
+npm run api:check
 npm run storybook
-npm run benchmark
 ```
-
-## Semver guardrails
-
-- `npm run semver:changeset` validates releasable changes include a changeset.
-- `npm run api:check` verifies public API matches `api/public-api.d.ts`.
-- `npm run api:update` refreshes API baseline intentionally.
-
-CI enforces these checks before release workflows proceed.

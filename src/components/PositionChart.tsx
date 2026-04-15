@@ -7,7 +7,9 @@ import { createAnnotationMarkersPlugin, createCursorLinePlugin } from "../utils/
 import { createLineAnnotationDatasets } from "../utils/annotations";
 import { TelemetryCard } from "./TelemetryCard";
 import { ClientChart } from "./ClientChart";
-import "../utils/chartSetup";
+import { ensureChartSetup } from "../utils/chartSetup";
+
+ensureChartSetup();
 
 const withAlpha = (color: string, alpha: number): string => {
   const hex = color.replace("#", "");

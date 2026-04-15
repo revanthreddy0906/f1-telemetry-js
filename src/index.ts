@@ -1,3 +1,4 @@
+// ── Components ──
 export { SpeedChart } from "./components/SpeedChart";
 export { ThrottleBrakeChart } from "./components/ThrottleBrakeChart";
 export { LapComparisonChart } from "./components/LapComparisonChart";
@@ -13,9 +14,34 @@ export { SpeedHeatmapTrackMap } from "./components/SpeedHeatmapTrackMap";
 export { RadarChart } from "./components/RadarChart";
 export { PitStopTimeline } from "./components/PitStopTimeline";
 export { WeatherWidget } from "./components/WeatherWidget";
+export { TelemetryPlayground } from "./components/TelemetryPlayground";
 
+// ── Hooks ──
+export { useTelemetry } from "./hooks/useTelemetry";
+export type { UseTelemetryOptions, UseTelemetryResult } from "./hooks/useTelemetry";
+export { useCursorSync } from "./hooks/useCursorSync";
+export type { UseCursorSyncResult } from "./hooks/useCursorSync";
+export { TelemetryProvider, useTelemetryContext } from "./hooks/TelemetryProvider";
+export type { TelemetryContextValue, TelemetryProviderProps } from "./hooks/TelemetryProvider";
+export { useAutoTheme } from "./hooks/useAutoTheme";
+export { useChartExport } from "./hooks/useChartExport";
+export type { ChartExportOptions, ExportFormat, UseChartExportResult } from "./hooks/useChartExport";
+
+/**
+ * Parse raw telemetry payloads into normalized `FormattedTelemetry` arrays.
+ */
 export { formatTelemetry } from "./utils/formatTelemetry";
+
+/**
+ * Validate telemetry arrays for missing channels, invalid values, and length mismatches.
+ */
+export { validateTelemetry } from "./utils/validation";
+
+/**
+ * Apply windowing/downsampling to telemetry series while keeping channels aligned.
+ */
 export { processSeriesData, findNearestIndex } from "./utils/processing";
+
 export {
   normalizeDistance,
   computeLapTimes,
@@ -26,15 +52,45 @@ export {
   detectOvertakes,
   classifyTyreCompound
 } from "./utils/computations";
+
 export { mergeTelemetry, exportToJson, exportToCsv } from "./utils/exporters";
-export { validateTelemetry } from "./utils/validation";
 export { createTelemetryCssVariables, telemetryCssVariables } from "./components/chartTheme";
-export {
-  createLineAnnotationDatasets,
-  createTrackAnnotationDataset,
-  createTrackAnnotationDatasets
-} from "./utils/annotations";
-export { registerTelemetryPanel, unregisterTelemetryPanel, clearTelemetryPanels, getTelemetryPanels } from "./extensions/registry";
+
+/**
+ * Build Chart.js datasets for rendering line-chart annotation markers.
+ */
+export { createLineAnnotationDatasets } from "./utils/annotations";
+
+/**
+ * Build Chart.js datasets for rendering track-map annotation markers.
+ */
+export { createTrackAnnotationDataset, createTrackAnnotationDatasets } from "./utils/annotations";
+
+/**
+ * Register a custom dashboard extension panel.
+ */
+export { registerTelemetryPanel } from "./extensions/registry";
+
+/**
+ * Remove a previously registered dashboard extension panel.
+ */
+export { unregisterTelemetryPanel } from "./extensions/registry";
+
+/**
+ * Clear all registered dashboard extension panels.
+ */
+export { clearTelemetryPanels } from "./extensions/registry";
+
+/**
+ * Return all registered dashboard extension panels in render order.
+ */
+export { getTelemetryPanels } from "./extensions/registry";
+
+// ── Pre-built extension panels ──
+export { telemetryStatsPanel } from "./extensions/panels/statsPanel";
+export { gearDistributionPanel } from "./extensions/panels/gearDistributionPanel";
+export { lapSummaryPanel } from "./extensions/panels/lapSummaryPanel";
+
 export * from "./adapters";
 export * from "./constants";
 
@@ -78,6 +134,7 @@ export type {
   DriverPitStops,
   PitStopTimelineProps,
   WeatherDataPoint,
+  WeatherMetric,
   WeatherWidgetProps,
   LapTime,
   SectorSplit,
@@ -99,3 +156,5 @@ export type {
   TelemetryValidationIssue,
   TelemetryValidationResult
 } from "./types/telemetry";
+
+export type { TelemetryPlaygroundProps } from "./components/TelemetryPlayground";

@@ -5,7 +5,9 @@ import { findNearestIndex, processSeriesData } from "../utils/processing";
 import { createTrackAnnotationDataset } from "../utils/annotations";
 import { TelemetryCard } from "./TelemetryCard";
 import { ClientChart } from "./ClientChart";
-import "../utils/chartSetup";
+import { ensureChartSetup } from "../utils/chartSetup";
+
+ensureChartSetup();
 
 export const TrackMap = ({
   x,

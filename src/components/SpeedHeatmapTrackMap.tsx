@@ -6,7 +6,9 @@ import { findNearestIndex, processSeriesData } from "../utils/processing";
 import { createTrackAnnotationDatasets } from "../utils/annotations";
 import { TelemetryCard } from "./TelemetryCard";
 import { ClientChart } from "./ClientChart";
-import "../utils/chartSetup";
+import { ensureChartSetup } from "../utils/chartSetup";
+
+ensureChartSetup();
 
 const toRgb = (hexColor: string): [number, number, number] => {
   const hex = hexColor.replace("#", "");

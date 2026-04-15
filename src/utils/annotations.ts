@@ -24,6 +24,9 @@ export const getAnnotationTimes = (annotations: TelemetryAnnotation[] | undefine
     .map((annotation) => annotation.time)
     .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
 
+/**
+ * Create marker datasets for line charts from telemetry annotations.
+ */
 export const createLineAnnotationDatasets = (
   annotations: TelemetryAnnotation[] | undefined,
   time: number[],
@@ -71,6 +74,9 @@ export const createLineAnnotationDatasets = (
   });
 };
 
+/**
+ * Create marker datasets for track-map scatter charts from telemetry annotations.
+ */
 export const createTrackAnnotationDataset = (
   annotations: TelemetryAnnotation[] | undefined,
   trackPoints: Array<{ x: number; y: number }>,

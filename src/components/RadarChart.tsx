@@ -3,7 +3,9 @@ import { resolveThemeTokens } from "./chartTheme";
 import { TelemetryCard } from "./TelemetryCard";
 import { ClientChart } from "./ClientChart";
 import type { RadarChartProps } from "../types/telemetry";
-import "../utils/chartSetup";
+import { ensureChartSetup } from "../utils/chartSetup";
+
+ensureChartSetup();
 
 const hexToRgba = (hexColor: string, opacity: number): string => {
   const hex = hexColor.replace("#", "");

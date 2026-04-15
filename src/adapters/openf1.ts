@@ -20,6 +20,9 @@ const BRAKE_KEYS = ["brake", "brake_percentage"];
 const X_KEYS = ["x", "position_x", "world_x"];
 const Y_KEYS = ["y", "position_y", "world_y"];
 
+/**
+ * Convert OpenF1 telemetry records into normalized telemetry arrays.
+ */
 export const fromOpenF1Telemetry = (input: OpenF1TelemetryPoint[]): FormattedTelemetry => {
   const points = input.map((point, index): RawTelemetryPoint => ({
     time: toSeconds(pickField(point, TIME_KEYS)) ?? index,

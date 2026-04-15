@@ -13,16 +13,29 @@ import {
   Tooltip
 } from "chart.js";
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  RadarController,
-  RadialLinearScale,
-  Title,
-  Tooltip,
-  Legend,
-  Filler,
-  Decimation
-);
+let isChartSetupComplete = false;
+
+/**
+ * Register all chart.js controllers/scales used by the library.
+ */
+export const ensureChartSetup = (): void => {
+  if (isChartSetupComplete) {
+    return;
+  }
+
+  ChartJS.register(
+    CategoryScale,
+    LinearScale,
+    PointElement,
+    LineElement,
+    RadarController,
+    RadialLinearScale,
+    Title,
+    Tooltip,
+    Legend,
+    Filler,
+    Decimation
+  );
+
+  isChartSetupComplete = true;
+};

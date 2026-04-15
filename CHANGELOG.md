@@ -58,6 +58,17 @@ All notable changes to this project will be documented in this file.
   - `fromJsonTelemetry`
   - `fromParquet`
   - `fetchOpenF1Telemetry` / `fetchOpenF1Sessions` / `fetchOpenF1Drivers`
+- New hooks and context APIs:
+  - `useTelemetry`
+  - `useCursorSync`
+  - `useAutoTheme`
+  - `useChartExport`
+  - `TelemetryProvider` / `useTelemetryContext`
+- New pre-built extension panels:
+  - `telemetryStatsPanel`
+  - `gearDistributionPanel`
+  - `lapSummaryPanel`
+- New headless core entrypoint export: `f1-telemetry-js/core`
 - New F1 domain constants module (`src/constants`) with:
   - teams/drivers/colors
   - tracks + DRS/sector metadata
@@ -72,7 +83,10 @@ All notable changes to this project will be documented in this file.
 - SSR-safe lazy chart rendering expanded (including radar support).
 - Storybook coverage expanded with dedicated stories for all new components.
 - CI/release workflows now enforce benchmarks and API/changeset checks.
-- Package name changed to scoped npm name: `@revanthreddy0906/f1-telemetry-js` (README/examples/release messaging updated).
+- Package metadata polish:
+  - added `author`, `repository`, `homepage`, `bugs`, `engines`, and `sideEffects`
+  - added `LICENSE` to publishable package files
+- Build now emits multi-entry outputs for both `index` and `core`.
 - Release workflow now skips npm publish when the current package version is already on npm to avoid repeated `E403` failures on reruns.
 
 ### Internal
@@ -88,3 +102,6 @@ All notable changes to this project will be documented in this file.
 - Added test coverage for new adapters/constants:
   - `tests/adapters-new.test.ts`
   - `tests/constants.test.ts`
+- Added new test suites:
+  - `tests/hooks.test.tsx`
+  - `tests/playground.test.tsx`

@@ -41,6 +41,9 @@ const fromPoints = (points: FastF1TelemetryPoint[]): FormattedTelemetry => {
   return formatTelemetry(normalized);
 };
 
+/**
+ * Convert FastF1 telemetry payloads into normalized telemetry arrays.
+ */
 export const fromFastF1Telemetry = (input: FastF1TelemetryInput): FormattedTelemetry => {
   if (Array.isArray(input)) {
     return fromPoints(input);

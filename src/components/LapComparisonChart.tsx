@@ -10,7 +10,9 @@ import {
 } from "../utils/plugins";
 import { TelemetryCard } from "./TelemetryCard";
 import { ClientChart } from "./ClientChart";
-import "../utils/chartSetup";
+import { ensureChartSetup } from "../utils/chartSetup";
+
+ensureChartSetup();
 
 export const LapComparisonChart = ({
   driver1,

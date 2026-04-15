@@ -136,6 +136,9 @@ const applyDownsampling = (
   };
 };
 
+/**
+ * Sanitize, align, window, and downsample telemetry series in one pass.
+ */
 export const processSeriesData = <T extends SeriesMap>({
   context,
   time,
@@ -157,6 +160,9 @@ export const processSeriesData = <T extends SeriesMap>({
   };
 };
 
+/**
+ * Find the index of the value nearest to `target`.
+ */
 export const findNearestIndex = (values: number[], target: number | null | undefined): number => {
   if (target === null || target === undefined || values.length === 0) {
     return -1;
