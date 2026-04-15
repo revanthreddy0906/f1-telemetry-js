@@ -1,10 +1,17 @@
 # Changelog
 
+## 1.1.0
+
+### Minor Changes
+
+- 8b773e1: Add extension APIs for custom dashboard panels, telemetry adapters (FastF1/OpenF1/CSV), SSR-safe lazy chart rendering, annotation overlays, high-contrast accessibility upgrades, benchmark tooling, example app templates, and semantic-versioning CI guardrails.
+
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
 ### Added
+
 - Ten new visualization components:
   - `GearChart`
   - `EnergyChart`
@@ -34,6 +41,7 @@ All notable changes to this project will be documented in this file.
   - `semver:changeset`
 
 ### Changed
+
 - Accessibility improvements across chart cards (focus ring + ARIA support).
 - Theme system extended with `high-contrast` mode and tokenized focus styling.
 - SSR-safe lazy chart rendering expanded (including radar support).
@@ -41,5 +49,6 @@ All notable changes to this project will be documented in this file.
 - CI/release workflows now enforce benchmarks and API/changeset checks.
 
 ### Internal
+
 - Expanded test suite with `tests/new-components.test.tsx`.
 - Updated public API baseline at `api/public-api.d.ts`.
