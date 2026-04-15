@@ -1,0 +1,177 @@
+import type { DataProcessingOptions } from "../types/telemetry";
+import { alignSeriesLengths, sanitizeNumericArray } from "./validation";
+
+type SeriesMap = Record<string, number[]>;
+
+interface ProcessSeriesInput {
+  context: string;
+  time: unknown;
+  seriesMap: Record<string, unknown>;
+  processing?: DataProcessingOptions;
+}
+
+interface ProcessSeriesOutput<T extends SeriesMap> {
+  time: number[];
+  seriesMap: T;
+}
+
+const applyWindow = (
+  time: number[],
+  seriesMap: SeriesMap,
+  processing?: DataProcessingOptions
+): { time: number[]; seriesMap: SeriesMap } => {
+  const start = processing?.window?.startTime ?? Number.NEGATIVE_INFINITY;
+  const end = processing?.window?.endTime ?? Number.POSITIVE_INFINITY;
+
+  if (!Number.isFinite(start) && !Number.isFinite(end)) {
+    return { time, seriesMap };
+  }
+
+  const selectedIndices: number[] = [];
+  time.forEach((value, index) => {
+    if (value >= start && value <= end) {
+      selectedIndices.push(index);
+    }
+  });
+
+  if (selectedIndices.length === 0) {
+    return {
+      time: [],
+      seriesMap: Object.fromEntries(Object.keys(seriesMap).map((key) => [key, []]))
+    };
+  }
+
+  return {
+    time: selectedIndices.map((index) => time[index]),
+    seriesMap: Object.fromEntries(
+      Object.entries(seriesMap).map(([key, series]) => [key, selectedIndices.map((index) => series[index])])
+    )
+  };
+};
+
+const uniqueSorted = (indices: number[]): number[] => [...new Set(indices)].sort((a, b) => a - b);
+
+const pickByIndices = (values: number[], indices: number[]): number[] => indices.map((index) => values[index]);
+
+const downsampleEveryNth = (length: number, maxPoints: number): number[] => {
+  if (length <= maxPoints) {
+    return Array.from({ length }, (_, index) => index);
+  }
+
+  const step = Math.ceil(length / maxPoints);
+  const indices: number[] = [0];
+
+  for (let index = step; index < length - 1; index += step) {
+    indices.push(index);
+  }
+
+  indices.push(length - 1);
+  return uniqueSorted(indices);
+};
+
+const downsampleMinMax = (basis: number[], maxPoints: number): number[] => {
+  if (basis.length <= maxPoints || maxPoints < 4) {
+    return downsampleEveryNth(basis.length, maxPoints);
+  }
+
+  const targetBuckets = maxPoints - 2;
+  const bucketSize = (basis.length - 2) / targetBuckets;
+  const indices: number[] = [0];
+
+  for (let bucket = 0; bucket < targetBuckets; bucket += 1) {
+    const start = 1 + Math.floor(bucket * bucketSize);
+    const endExclusive = Math.min(1 + Math.floor((bucket + 1) * bucketSize), basis.length - 1);
+
+    if (start >= endExclusive) {
+      continue;
+    }
+
+    let minIndex = start;
+    let maxIndex = start;
+
+    for (let index = start + 1; index < endExclusive; index += 1) {
+      if (basis[index] < basis[minIndex]) {
+        minIndex = index;
+      }
+      if (basis[index] > basis[maxIndex]) {
+        maxIndex = index;
+      }
+    }
+
+    indices.push(minIndex, maxIndex);
+  }
+
+  indices.push(basis.length - 1);
+  const deduped = uniqueSorted(indices);
+
+  if (deduped.length > maxPoints) {
+    return downsampleEveryNth(deduped.length, maxPoints).map((index) => deduped[index]);
+  }
+
+  return deduped;
+};
+
+const applyDownsampling = (
+  time: number[],
+  seriesMap: SeriesMap,
+  processing?: DataProcessingOptions
+): { time: number[]; seriesMap: SeriesMap } => {
+  const maxPoints = processing?.maxPoints;
+  if (typeof maxPoints !== "number" || maxPoints < 2 || time.length <= maxPoints) {
+    return { time, seriesMap };
+  }
+
+  const basisKey = Object.keys(seriesMap)[0];
+  const basisSeries = basisKey ? seriesMap[basisKey] : time;
+  const indices =
+    processing?.downsampleStrategy === "min-max"
+      ? downsampleMinMax(basisSeries, maxPoints)
+      : downsampleEveryNth(time.length, maxPoints);
+
+  return {
+    time: pickByIndices(time, indices),
+    seriesMap: Object.fromEntries(
+      Object.entries(seriesMap).map(([key, series]) => [key, pickByIndices(series, indices)])
+    )
+  };
+};
+
+export const processSeriesData = <T extends SeriesMap>({
+  context,
+  time,
+  seriesMap,
+  processing
+}: ProcessSeriesInput): ProcessSeriesOutput<T> => {
+  const sanitizedTime = sanitizeNumericArray(time, `${context}.time`);
+  const sanitizedSeries = Object.fromEntries(
+    Object.entries(seriesMap).map(([key, values]) => [key, sanitizeNumericArray(values, `${context}.${key}`)])
+  );
+
+  const aligned = alignSeriesLengths(context, sanitizedTime, sanitizedSeries);
+  const windowed = applyWindow(aligned.time, aligned.seriesMap, processing);
+  const downsampled = applyDownsampling(windowed.time, windowed.seriesMap, processing);
+
+  return {
+    time: downsampled.time,
+    seriesMap: downsampled.seriesMap as T
+  };
+};
+
+export const findNearestIndex = (values: number[], target: number | null | undefined): number => {
+  if (target === null || target === undefined || values.length === 0) {
+    return -1;
+  }
+
+  let nearestIndex = 0;
+  let nearestDistance = Math.abs(values[0] - target);
+
+  for (let index = 1; index < values.length; index += 1) {
+    const distance = Math.abs(values[index] - target);
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearestIndex = index;
+    }
+  }
+
+  return nearestIndex;
+};

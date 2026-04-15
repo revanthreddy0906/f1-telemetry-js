@@ -1,4 +1,5 @@
 import type { FormattedTelemetry, RawTelemetryInput, RawTelemetryPoint } from "../types/telemetry";
+import { validateTelemetry, warnTelemetryIssues } from "./validation";
 
 const TIME_KEYS = ["time", "timestamp", "t", "elapsed", "elapsedTime"];
 const SPEED_KEYS = ["speed", "velocity", "v"];
@@ -94,6 +95,8 @@ export const formatTelemetry = (data: RawTelemetryInput): FormattedTelemetry => 
     formatted.x.push(pickNumber(point, X_KEYS) ?? 0);
     formatted.y.push(pickNumber(point, Y_KEYS) ?? 0);
   });
+
+  warnTelemetryIssues(validateTelemetry(formatted, "formatTelemetry"));
 
   return formatted;
 };
