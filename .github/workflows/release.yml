@@ -45,7 +45,18 @@ jobs:
       - name: API diff check
         run: npm run api:check
 
+      - name: Check release toggle
+        id: release_toggle
+        run: |
+          if [ "${{ vars.ENABLE_NPM_PUBLISH }}" = "true" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Release publish disabled. Set repository variable ENABLE_NPM_PUBLISH=true to enable npm publishing."
+          fi
+
       - name: Validate npm publish auth
+        if: steps.release_toggle.outputs.enabled == 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
@@ -60,6 +71,7 @@ jobs:
           }
 
       - name: Create release PR / publish
+        if: steps.release_toggle.outputs.enabled == 'true'
         uses: changesets/action@v1
         with:
           version: npm run version-packages

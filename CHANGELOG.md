@@ -82,6 +82,7 @@ All notable changes to this project will be documented in this file.
   - Upgraded `actions/checkout` and `actions/setup-node` to `v5`
   - Updated CI/release runtime to Node.js 22
   - Added npm auth preflight step in release workflow for clearer publish failures
+  - Added `ENABLE_NPM_PUBLISH` release toggle to prevent recurring release failures on every push when npm publish is not configured
 - Added test coverage for new adapters/constants:
   - `tests/adapters-new.test.ts`
   - `tests/constants.test.ts`
