@@ -100,6 +100,10 @@ export type {
   LapComparisonMode,
   TelemetryAnnotationType,
   TelemetrySeverity,
+  ValidationMode,
+  IssueSeverity,
+  TelemetryExtraChannel,
+  TelemetrySeriesKey,
   ChartContainerProps,
   DataProcessingOptions,
   TelemetryWindow,
@@ -147,6 +151,7 @@ export type {
   TyreClassification,
   JsonExportFormat,
   CsvExportOptions,
+  TelemetryEvent,
   TelemetryPanelRenderContext,
   TelemetryPanelExtension,
   TelemetryDashboardProps,
@@ -154,7 +159,14 @@ export type {
   RawTelemetryPoint,
   RawTelemetryInput,
   TelemetryValidationIssue,
-  TelemetryValidationResult
+  TelemetryValidationOptions,
+  TelemetryValidationDiagnostics,
+  TelemetryValidationResult,
+  AdapterName,
+  AdapterParseOptions,
+  TelemetryAdapterDiagnostic,
+  TelemetryAdapterDiagnostics,
+  TelemetryAdapterResult
 } from "./types/telemetry";
 
 export type { TelemetryPlaygroundProps } from "./components/TelemetryPlayground";

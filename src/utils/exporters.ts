@@ -1,11 +1,12 @@
 import type {
   CsvExportOptions,
   FormattedTelemetry,
-  JsonExportFormat
+  JsonExportFormat,
+  TelemetrySeriesKey
 } from "../types/telemetry";
 import { alignSeriesLengths, sanitizeNumericArray } from "./validation";
 
-const TELEMETRY_CHANNELS: Array<keyof FormattedTelemetry> = [
+const TELEMETRY_CHANNELS: TelemetrySeriesKey[] = [
   "time",
   "speed",
   "throttle",
@@ -143,15 +144,13 @@ export const exportToJson = (
   return JSON.stringify(rows);
 };
 
-const resolveChannels = (channels?: Array<keyof FormattedTelemetry>): Array<keyof FormattedTelemetry> => {
+const resolveChannels = (channels?: TelemetrySeriesKey[]): TelemetrySeriesKey[] => {
   if (!channels || channels.length === 0) {
     return TELEMETRY_CHANNELS;
   }
 
   const unique = Array.from(new Set(channels));
-  return unique.filter((channel): channel is keyof FormattedTelemetry =>
-    TELEMETRY_CHANNELS.includes(channel)
-  );
+  return unique.filter((channel): channel is TelemetrySeriesKey => TELEMETRY_CHANNELS.includes(channel));
 };
 
 /**

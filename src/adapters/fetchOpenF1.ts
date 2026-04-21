@@ -1,10 +1,13 @@
-import type { FormattedTelemetry } from "../types/telemetry";
+import type { AdapterParseOptions, FormattedTelemetry, TelemetryAdapterResult } from "../types/telemetry";
 import { fromOpenF1Telemetry, type OpenF1TelemetryPoint } from "./openf1";
+import { toAdapterResult } from "./diagnostics";
 
 export interface OpenF1FetchOptions {
   baseUrl?: string;
   signal?: AbortSignal;
 }
+
+export interface OpenF1FetchTelemetryOptions extends OpenF1FetchOptions, AdapterParseOptions {}
 
 export interface OpenF1SessionInfo {
   sessionKey: number;
@@ -52,6 +55,21 @@ export const fetchOpenF1Telemetry = async (
   });
   const data = await fetchJson<OpenF1TelemetryPoint[]>(url, options);
   return fromOpenF1Telemetry(data ?? []);
+};
+
+export const fetchOpenF1TelemetryWithDiagnostics = async (
+  sessionKey: number,
+  driverNumber: number,
+  options: OpenF1FetchTelemetryOptions = {}
+): Promise<TelemetryAdapterResult> => {
+  const baseUrl = options.baseUrl ?? DEFAULT_OPEN_F1_BASE_URL;
+  const url = buildUrl(baseUrl, "car_data", {
+    session_key: sessionKey,
+    driver_number: driverNumber
+  });
+  const data = await fetchJson<OpenF1TelemetryPoint[]>(url, options);
+  const telemetry = fromOpenF1Telemetry(data ?? []);
+  return toAdapterResult("openf1-fetch", telemetry, (data ?? []).length, options);
 };
 
 export const fetchOpenF1Sessions = async (

@@ -6,6 +6,7 @@ import type {
   DataProcessingOptions,
   FormattedTelemetry,
   RawTelemetryInput,
+  ValidationMode,
   TelemetryValidationResult
 } from "../types/telemetry";
 
@@ -14,6 +15,7 @@ export interface UseTelemetryOptions {
   adapter?: (data: unknown) => FormattedTelemetry;
   fetcher?: () => Promise<unknown>;
   validate?: boolean;
+  validationMode?: ValidationMode;
   processing?: DataProcessingOptions;
 }
 
@@ -82,6 +84,7 @@ export const useTelemetry = (options: UseTelemetryOptions = {}): UseTelemetryRes
     adapter,
     fetcher,
     validate: shouldValidate = true,
+    validationMode = "strict",
     processing
   } = options;
 
@@ -110,12 +113,12 @@ export const useTelemetry = (options: UseTelemetryOptions = {}): UseTelemetryRes
       setTelemetryState(processed);
       setError(null);
       if (shouldValidate) {
-        setValidation(validateTelemetry(processed, "useTelemetry"));
+        setValidation(validateTelemetry(processed, "useTelemetry", { mode: validationMode }));
       } else {
         setValidation(null);
       }
     },
-    [processing, shouldValidate]
+    [processing, shouldValidate, validationMode]
   );
 
   useEffect(() => {

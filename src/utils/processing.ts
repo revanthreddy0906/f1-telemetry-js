@@ -49,6 +49,51 @@ const applyWindow = (
   };
 };
 
+const normalizeTimeSeries = (
+  time: number[],
+  seriesMap: SeriesMap
+): { time: number[]; seriesMap: SeriesMap } => {
+  if (time.length < 2) {
+    return { time, seriesMap };
+  }
+
+  const sortedIndices = Array.from({ length: time.length }, (_, index) => index).sort(
+    (left, right) => time[left] - time[right]
+  );
+  const isAlreadySorted = sortedIndices.every((index, sortedPosition) => index === sortedPosition);
+  const orderedTime = isAlreadySorted ? time : sortedIndices.map((index) => time[index]);
+  const orderedSeries = isAlreadySorted
+    ? seriesMap
+    : Object.fromEntries(
+        Object.entries(seriesMap).map(([key, series]) => [key, sortedIndices.map((index) => series[index])])
+      );
+
+  const dedupedTime: number[] = [];
+  const dedupedSeries = Object.fromEntries(
+    Object.keys(orderedSeries).map((key) => [key, [] as number[]])
+  ) as SeriesMap;
+  const timeToIndex = new Map<number, number>();
+  orderedTime.forEach((value, index) => {
+    const existingIndex = timeToIndex.get(value);
+    if (existingIndex === undefined) {
+      dedupedTime.push(value);
+      const nextIndex = dedupedTime.length - 1;
+      timeToIndex.set(value, nextIndex);
+      Object.entries(orderedSeries).forEach(([key, series]) => {
+        dedupedSeries[key].push(series[index]);
+      });
+      return;
+    }
+
+    // Keep the latest sample for duplicate timestamps.
+    Object.entries(orderedSeries).forEach(([key, series]) => {
+      dedupedSeries[key][existingIndex] = series[index];
+    });
+  });
+
+  return { time: dedupedTime, seriesMap: dedupedSeries };
+};
+
 const uniqueSorted = (indices: number[]): number[] => [...new Set(indices)].sort((a, b) => a - b);
 
 const pickByIndices = (values: number[], indices: number[]): number[] => indices.map((index) => values[index]);
@@ -151,7 +196,8 @@ export const processSeriesData = <T extends SeriesMap>({
   );
 
   const aligned = alignSeriesLengths(context, sanitizedTime, sanitizedSeries);
-  const windowed = applyWindow(aligned.time, aligned.seriesMap, processing);
+  const normalized = normalizeTimeSeries(aligned.time, aligned.seriesMap);
+  const windowed = applyWindow(normalized.time, normalized.seriesMap, processing);
   const downsampled = applyDownsampling(windowed.time, windowed.seriesMap, processing);
 
   return {

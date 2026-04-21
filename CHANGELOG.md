@@ -20,6 +20,19 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Reliability/data-model upgrades for telemetry processing:
+  - optional extra channels on `FormattedTelemetry` (`gear`, `ersDeployment`, `ersHarvest`, `batteryLevel`, weather channels)
+  - telemetry event stream support (`events`)
+  - adapter diagnostics result APIs:
+    - `fromFastF1TelemetryWithDiagnostics`
+    - `fromOpenF1TelemetryWithDiagnostics`
+    - `fromCsvTelemetryWithDiagnostics`
+    - `fromJsonTelemetryWithDiagnostics`
+    - `fromParquetWithDiagnostics`
+    - `fromMultiViewerCarDataWithDiagnostics`
+    - `fetchOpenF1TelemetryWithDiagnostics`
+  - release smoke script and CI/release gates: `smoke:release`
+  - fixture-backed adapter contract tests and data reliability regression tests
 - Ten new visualization components:
   - `GearChart`
   - `EnergyChart`
@@ -86,6 +99,9 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- `validateTelemetry` now supports strict/lenient modes, issue severities, and diagnostics metadata.
+- `useTelemetry` now supports configurable `validationMode`.
+- Processing now normalizes out-of-order and duplicate timestamps before windowing/downsampling.
 - Accessibility improvements across chart cards (focus ring + ARIA support).
 - Theme system extended with `high-contrast` mode and tokenized focus styling.
 - SSR-safe lazy chart rendering expanded (including radar support).

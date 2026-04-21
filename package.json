@@ -46,6 +46,7 @@
     "test:run": "vitest run",
     "benchmark": "npm run build && node scripts/perf-benchmark.mjs",
     "benchmark:ci": "node scripts/perf-benchmark.mjs --ci",
+    "smoke:release": "node scripts/release-smoke.mjs",
     "api:check": "node scripts/check-api-diff.mjs",
     "api:update": "node scripts/check-api-diff.mjs --update",
     "semver:changeset": "node scripts/check-changeset.mjs",

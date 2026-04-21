@@ -97,6 +97,29 @@ describe("hooks", () => {
       await waitFor(() => expect(result.current.telemetry?.time.length).toBe(3));
       expect(adapter).toHaveBeenCalledTimes(1);
     });
+
+    it("supports lenient validation mode for mismatched series", async () => {
+      const malformed = {
+        time: [0, 1, 2],
+        speed: [100, 120],
+        throttle: [20, 40, 60],
+        brake: [0, 0, 1],
+        x: [1, 2, 3],
+        y: [4, 5, 6]
+      };
+      const adapter = () => malformed as FormattedTelemetry;
+      const options = {
+        data: malformed,
+        adapter,
+        validationMode: "lenient" as const
+      };
+
+      const { result } = renderHook(() => useTelemetry(options));
+
+      await waitFor(() => expect(result.current.validation).not.toBeNull());
+      expect(result.current.validation?.isValid).toBe(true);
+      expect(result.current.validation?.diagnostics.warningCount).toBeGreaterThan(0);
+    });
   });
 
   describe("useCursorSync", () => {

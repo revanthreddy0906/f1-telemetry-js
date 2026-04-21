@@ -7,6 +7,7 @@ import type {
   LapSectors,
   LapTime,
   OvertakeEvent,
+  TelemetrySeriesKey,
   TimeDeltaPoint,
   TyreClassification
 } from "../types/telemetry";
@@ -406,7 +407,7 @@ export const interpolateTelemetry = (
     time.push(Number(value.toFixed(8)));
   }
 
-  const interpolateChannel = (source: FormattedTelemetry, channel: keyof FormattedTelemetry): number[] =>
+  const interpolateChannel = (source: FormattedTelemetry, channel: TelemetrySeriesKey): number[] =>
     time.map((timeValue) => interpolateMonotonicSeries(source.time, source[channel], timeValue) ?? 0);
 
   const aligned1: FormattedTelemetry = {

@@ -1,6 +1,7 @@
 import { formatTelemetry } from "../utils/formatTelemetry";
-import type { FormattedTelemetry, RawTelemetryPoint } from "../types/telemetry";
+import type { AdapterParseOptions, FormattedTelemetry, RawTelemetryPoint, TelemetryAdapterResult } from "../types/telemetry";
 import { pickField, toNumber, toSeconds } from "./shared";
+import { toAdapterResult } from "./diagnostics";
 
 export type FastF1TelemetryPoint = {
   [key: string]: unknown;
@@ -27,6 +28,10 @@ const THROTTLE_KEYS = ["Throttle", "throttle"];
 const BRAKE_KEYS = ["Brake", "brake"];
 const X_KEYS = ["X", "x", "PositionX", "posX"];
 const Y_KEYS = ["Y", "y", "PositionY", "posY"];
+const GEAR_KEYS = ["nGear", "NGear", "gear"];
+const ERS_DEPLOYMENT_KEYS = ["ERSDeploy", "ERSDeployment", "ersDeployment"];
+const ERS_HARVEST_KEYS = ["ERSHarvest", "ersHarvest"];
+const BATTERY_LEVEL_KEYS = ["BatteryLevel", "batteryLevel", "soc"];
 
 const fromPoints = (points: FastF1TelemetryPoint[]): FormattedTelemetry => {
   const normalized = points.map((point, index): RawTelemetryPoint => ({
@@ -35,7 +40,11 @@ const fromPoints = (points: FastF1TelemetryPoint[]): FormattedTelemetry => {
     throttle: toNumber(pickField(point, THROTTLE_KEYS)) ?? 0,
     brake: toNumber(pickField(point, BRAKE_KEYS)) ?? 0,
     x: toNumber(pickField(point, X_KEYS)) ?? 0,
-    y: toNumber(pickField(point, Y_KEYS)) ?? 0
+    y: toNumber(pickField(point, Y_KEYS)) ?? 0,
+    gear: toNumber(pickField(point, GEAR_KEYS)) ?? undefined,
+    ersDeployment: toNumber(pickField(point, ERS_DEPLOYMENT_KEYS)) ?? undefined,
+    ersHarvest: toNumber(pickField(point, ERS_HARVEST_KEYS)) ?? undefined,
+    batteryLevel: toNumber(pickField(point, BATTERY_LEVEL_KEYS)) ?? undefined
   }));
 
   return formatTelemetry(normalized);
@@ -63,6 +72,25 @@ export const fromFastF1Telemetry = (input: FastF1TelemetryInput): FormattedTelem
     throttle: input.Throttle ?? input.throttle,
     brake: input.Brake ?? input.brake,
     x: input.X ?? input.x,
-    y: input.Y ?? input.y
+    y: input.Y ?? input.y,
+    gear: input.nGear ?? input.NGear ?? input.gear,
+    ersDeployment: input.ERSDeploy ?? input.ERSDeployment ?? input.ersDeployment,
+    ersHarvest: input.ERSHarvest ?? input.ersHarvest,
+    batteryLevel: input.BatteryLevel ?? input.batteryLevel ?? input.soc
   });
+};
+
+export const fromFastF1TelemetryWithDiagnostics = (
+  input: FastF1TelemetryInput,
+  options: AdapterParseOptions = {}
+): TelemetryAdapterResult => {
+  const telemetry = fromFastF1Telemetry(input);
+  const sourceSamples = Array.isArray(input)
+    ? input.length
+    : Array.isArray(input.records)
+      ? input.records.length
+      : Array.isArray(input.telemetry)
+        ? input.telemetry.length
+        : telemetry.time.length;
+  return toAdapterResult("fastf1", telemetry, sourceSamples, options);
 };

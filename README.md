@@ -110,6 +110,27 @@ import { fromCsvTelemetry, TEAM_COLORS, computeTimeDelta } from "f1-telemetry-js
 - `exportToJson`
 - `exportToCsv`
 
+### Reliability features (v1.2)
+
+```ts
+import {
+  fromOpenF1TelemetryWithDiagnostics,
+  validateTelemetry
+} from "f1-telemetry-js/core";
+
+const adapterResult = fromOpenF1TelemetryWithDiagnostics(rawOpenF1Data, {
+  validationMode: "lenient"
+});
+
+const strictValidation = validateTelemetry(adapterResult.telemetry, "lap-check", {
+  mode: "strict"
+});
+```
+
+- Optional extra telemetry channels: `gear`, `ersDeployment`, `ersHarvest`, `batteryLevel`, `airTemp`, `trackTemp`, `humidity`, `windSpeed`, `rainfall`, `pressure`
+- Structured adapter diagnostics for contract monitoring in CI
+- Validation modes: `strict` (errors on mismatches) and `lenient` (warnings for recoverable shape issues)
+
 ## Plugin Extension API
 
 ```ts

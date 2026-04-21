@@ -58,50 +58,90 @@ var alignSeriesLengths = (context, time, seriesMap) => {
     seriesMap: Object.fromEntries(seriesEntries.map(([key, series]) => [key, series.slice(0, minLength)]))
   };
 };
-var validateTelemetry = (telemetry, context = "Telemetry") => {
+var validateTelemetry = (telemetry, context = "Telemetry", options = {}) => {
   const requiredKeys = ["time", "speed", "throttle", "brake", "x", "y"];
   const issues = [];
-  const lengths = [];
+  const lengths = {};
+  const mode = options.mode ?? "strict";
+  const isLenient = mode === "lenient";
+  const allowEmptySeries = options.allowEmptySeries ?? isLenient;
   requiredKeys.forEach((key) => {
     const candidate = telemetry[key];
     if (!Array.isArray(candidate)) {
       issues.push({
         code: "INVALID_SERIES",
+        severity: "error",
+        channel: key,
         message: `${context}: "${key}" is missing or not an array.`
       });
       return;
     }
-    if (candidate.length === 0) {
+    lengths[key] = candidate.length;
+    if (candidate.length === 0 && !allowEmptySeries) {
       issues.push({
         code: "EMPTY_SERIES",
+        severity: isLenient ? "warning" : "error",
+        channel: key,
         message: `${context}: "${key}" is empty.`
+      });
+    }
+    if (candidate.length > 0 && candidate.length < 3) {
+      issues.push({
+        code: "SPARSE_SERIES",
+        severity: "warning",
+        channel: key,
+        actualLength: candidate.length,
+        message: `${context}: "${key}" has sparse data (${candidate.length} point(s)).`
       });
     }
     candidate.forEach((value, index) => {
       if (!Number.isFinite(value)) {
         issues.push({
           code: "INVALID_VALUE",
+          severity: "error",
+          channel: key,
+          index,
           message: `${context}: "${key}" contains a non-finite value at index ${index}.`
         });
       }
     });
-    lengths.push(candidate.length);
   });
-  if (lengths.length > 1 && Math.min(...lengths) !== Math.max(...lengths)) {
+  const lengthValues = Object.values(lengths);
+  const minLength = lengthValues.length === 0 ? 0 : Math.min(...lengthValues);
+  const maxLength = lengthValues.length === 0 ? 0 : Math.max(...lengthValues);
+  if (lengthValues.length > 1 && minLength !== maxLength) {
     issues.push({
       code: "LENGTH_MISMATCH",
+      severity: isLenient ? "warning" : "error",
+      expectedLength: minLength,
+      actualLength: maxLength,
       message: `${context}: telemetry arrays have inconsistent lengths.`
     });
   }
+  const errorCount = issues.filter((issue) => issue.severity === "error").length;
+  const warningCount = issues.length - errorCount;
   return {
-    isValid: issues.length === 0,
-    issues
+    isValid: errorCount === 0,
+    issues,
+    mode,
+    diagnostics: {
+      context,
+      mode,
+      totalIssues: issues.length,
+      errorCount,
+      warningCount,
+      lengths
+    }
   };
 };
 var warnTelemetryIssues = (validation) => {
-  if (!validation.isValid) {
-    validation.issues.forEach((issue) => warn(issue.message));
+  const warnableIssues = validation.issues.filter(
+    (issue) => issue.severity === "error" || issue.code !== "SPARSE_SERIES"
+  );
+  if (warnableIssues.length === 0) {
+    return;
   }
+  warnableIssues.forEach((issue) => warn(issue.message));
 };
 
 // src/utils/processing.ts
@@ -129,6 +169,40 @@ var applyWindow = (time, seriesMap, processing) => {
       Object.entries(seriesMap).map(([key, series]) => [key, selectedIndices.map((index) => series[index])])
     )
   };
+};
+var normalizeTimeSeries = (time, seriesMap) => {
+  if (time.length < 2) {
+    return { time, seriesMap };
+  }
+  const sortedIndices = Array.from({ length: time.length }, (_, index) => index).sort(
+    (left, right) => time[left] - time[right]
+  );
+  const isAlreadySorted = sortedIndices.every((index, sortedPosition) => index === sortedPosition);
+  const orderedTime = isAlreadySorted ? time : sortedIndices.map((index) => time[index]);
+  const orderedSeries = isAlreadySorted ? seriesMap : Object.fromEntries(
+    Object.entries(seriesMap).map(([key, series]) => [key, sortedIndices.map((index) => series[index])])
+  );
+  const dedupedTime = [];
+  const dedupedSeries = Object.fromEntries(
+    Object.keys(orderedSeries).map((key) => [key, []])
+  );
+  const timeToIndex = /* @__PURE__ */ new Map();
+  orderedTime.forEach((value, index) => {
+    const existingIndex = timeToIndex.get(value);
+    if (existingIndex === void 0) {
+      dedupedTime.push(value);
+      const nextIndex = dedupedTime.length - 1;
+      timeToIndex.set(value, nextIndex);
+      Object.entries(orderedSeries).forEach(([key, series]) => {
+        dedupedSeries[key].push(series[index]);
+      });
+      return;
+    }
+    Object.entries(orderedSeries).forEach(([key, series]) => {
+      dedupedSeries[key][existingIndex] = series[index];
+    });
+  });
+  return { time: dedupedTime, seriesMap: dedupedSeries };
 };
 var uniqueSorted = (indices) => [...new Set(indices)].sort((a, b) => a - b);
 var pickByIndices = (values, indices) => indices.map((index) => values[index]);
@@ -202,7 +276,8 @@ var processSeriesData = ({
     Object.entries(seriesMap).map(([key, values]) => [key, sanitizeNumericArray(values, `${context}.${key}`)])
   );
   const aligned = alignSeriesLengths(context, sanitizedTime, sanitizedSeries);
-  const windowed = applyWindow(aligned.time, aligned.seriesMap, processing);
+  const normalized = normalizeTimeSeries(aligned.time, aligned.seriesMap);
+  const windowed = applyWindow(normalized.time, normalized.seriesMap, processing);
   const downsampled = applyDownsampling(windowed.time, windowed.seriesMap, processing);
   return {
     time: downsampled.time,
@@ -232,6 +307,21 @@ var THROTTLE_KEYS = ["throttle", "throttlePosition"];
 var BRAKE_KEYS = ["brake", "brakePressure", "brakePosition"];
 var X_KEYS = ["x", "posX", "positionX", "worldX"];
 var Y_KEYS = ["y", "posY", "positionY", "worldY"];
+var EVENT_TIME_KEYS = ["time", "timestamp", "t", "sessionTime"];
+var EVENT_TYPE_KEYS = ["type", "eventType", "event", "kind"];
+var EVENT_VALUE_KEYS = ["value", "eventValue", "delta", "severity"];
+var EXTRA_CHANNEL_KEY_MAP = {
+  gear: ["gear", "nGear", "n_gear"],
+  ersDeployment: ["ersDeployment", "ers_deployment", "ers", "ersDeploy"],
+  ersHarvest: ["ersHarvest", "ers_harvest", "ersRecovery"],
+  batteryLevel: ["batteryLevel", "battery", "battery_level", "soc"],
+  airTemp: ["airTemp", "air_temperature", "air_temperature_celsius"],
+  trackTemp: ["trackTemp", "track_temperature", "track_temperature_celsius"],
+  humidity: ["humidity", "relative_humidity"],
+  windSpeed: ["windSpeed", "wind_speed"],
+  rainfall: ["rainfall", "rain_intensity", "rain"],
+  pressure: ["pressure", "air_pressure"]
+};
 var toNumber = (value) => {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
@@ -279,15 +369,63 @@ var getPointsFromColumns = (input) => {
   const brake = pickArray(input, BRAKE_KEYS) ?? [];
   const x = pickArray(input, X_KEYS) ?? [];
   const y = pickArray(input, Y_KEYS) ?? [];
-  const length = Math.max(time.length, speed.length, throttle.length, brake.length, x.length, y.length);
-  return Array.from({ length }, (_, index) => ({
-    time: time[index] ?? index,
-    speed: speed[index] ?? 0,
-    throttle: throttle[index] ?? 0,
-    brake: brake[index] ?? 0,
-    x: x[index] ?? 0,
-    y: y[index] ?? 0
-  }));
+  const extraArrays = Object.fromEntries(
+    Object.entries(EXTRA_CHANNEL_KEY_MAP).map(([channel, keys]) => [channel, pickArray(input, keys) ?? []])
+  );
+  const length = Math.max(
+    time.length,
+    speed.length,
+    throttle.length,
+    brake.length,
+    x.length,
+    y.length,
+    ...Object.values(extraArrays).map((series) => series.length)
+  );
+  return Array.from({ length }, (_, index) => {
+    const row = {
+      time: time[index] ?? index,
+      speed: speed[index] ?? 0,
+      throttle: throttle[index] ?? 0,
+      brake: brake[index] ?? 0,
+      x: x[index] ?? 0,
+      y: y[index] ?? 0
+    };
+    Object.keys(extraArrays).forEach((channel) => {
+      row[channel] = extraArrays[channel][index];
+    });
+    return row;
+  });
+};
+var formatEvent = (entry) => {
+  if (typeof entry !== "object" || entry === null) {
+    return null;
+  }
+  const point = entry;
+  const type = EVENT_TYPE_KEYS.map((key) => point[key]).find(
+    (value2) => typeof value2 === "string" && value2.trim() !== ""
+  );
+  const time = pickNumber(point, EVENT_TIME_KEYS);
+  if (!type || time === null) {
+    return null;
+  }
+  const rawValue = EVENT_VALUE_KEYS.map((key) => point[key]).find((value2) => value2 !== void 0);
+  const value = typeof rawValue === "number" || typeof rawValue === "string" || typeof rawValue === "boolean" || rawValue === null ? rawValue : void 0;
+  const description = typeof point.description === "string" ? point.description : void 0;
+  const metadata = typeof point.metadata === "object" && point.metadata !== null && !Array.isArray(point.metadata) ? point.metadata : void 0;
+  return {
+    time,
+    type,
+    value,
+    description,
+    metadata
+  };
+};
+var getEvents = (input) => {
+  if (Array.isArray(input)) {
+    return [];
+  }
+  const directEvents = Array.isArray(input.events) ? input.events : [];
+  return directEvents.map(formatEvent).filter((event) => event !== null);
 };
 var formatTelemetry = (data) => {
   const formatted = {
@@ -298,6 +436,12 @@ var formatTelemetry = (data) => {
     x: [],
     y: []
   };
+  const extraChannelBuffers = Object.fromEntries(
+    Object.keys(EXTRA_CHANNEL_KEY_MAP).map((channel) => [channel, []])
+  );
+  const hasExtraChannel = Object.fromEntries(
+    Object.keys(EXTRA_CHANNEL_KEY_MAP).map((channel) => [channel, false])
+  );
   const points = Array.isArray(data) ? data.filter((entry) => typeof entry === "object" && entry !== null) : getPointsFromNestedArray(data) ?? getPointsFromColumns(data);
   points.forEach((point, index) => {
     formatted.time.push(pickNumber(point, TIME_KEYS) ?? index);
@@ -306,9 +450,55 @@ var formatTelemetry = (data) => {
     formatted.brake.push(pickNumber(point, BRAKE_KEYS) ?? 0);
     formatted.x.push(pickNumber(point, X_KEYS) ?? 0);
     formatted.y.push(pickNumber(point, Y_KEYS) ?? 0);
+    Object.keys(EXTRA_CHANNEL_KEY_MAP).forEach((channel) => {
+      const channelValue = pickNumber(point, EXTRA_CHANNEL_KEY_MAP[channel]);
+      if (channelValue !== null) {
+        hasExtraChannel[channel] = true;
+      }
+      extraChannelBuffers[channel].push(channelValue ?? 0);
+    });
   });
+  const channels = Object.fromEntries(
+    Object.keys(EXTRA_CHANNEL_KEY_MAP).filter((channel) => hasExtraChannel[channel]).map((channel) => [channel, extraChannelBuffers[channel]])
+  );
+  if (Object.keys(channels).length > 0) {
+    formatted.channels = channels;
+  }
+  const events = getEvents(data);
+  if (events.length > 0) {
+    formatted.events = events;
+  }
   warnTelemetryIssues(validateTelemetry(formatted, "formatTelemetry"));
   return formatted;
+};
+
+// src/adapters/diagnostics.ts
+var toDiagnostic = (issue) => ({
+  code: issue.code,
+  severity: issue.severity,
+  message: issue.message,
+  field: issue.channel
+});
+var toAdapterResult = (adapter, telemetry, sourceSamples, options = {}) => {
+  const validation = validateTelemetry(telemetry, `${adapter} adapter`, {
+    mode: options.validationMode
+  });
+  const diagnostics = validation.issues.map(toDiagnostic);
+  const warningCount = diagnostics.filter((entry) => entry.severity === "warning").length;
+  const errorCount = diagnostics.length - warningCount;
+  return {
+    telemetry,
+    validation,
+    diagnostics: {
+      adapter,
+      sourceSamples,
+      parsedSamples: telemetry.time.length,
+      mode: validation.mode,
+      errorCount,
+      warningCount,
+      diagnostics
+    }
+  };
 };
 
 // src/adapters/csv.ts
@@ -321,6 +511,17 @@ var HEADER_KEY_MAP = {
   velocity: "speed",
   throttle: "throttle",
   brake: "brake",
+  gear: "gear",
+  ngear: "gear",
+  ersdeployment: "ersDeployment",
+  ersharvest: "ersHarvest",
+  batterylevel: "batteryLevel",
+  airtemp: "airTemp",
+  tracktemp: "trackTemp",
+  humidity: "humidity",
+  windspeed: "windSpeed",
+  rainfall: "rainfall",
+  pressure: "pressure",
   x: "x",
   y: "y"
 };
@@ -386,6 +587,11 @@ var fromCsvTelemetry = (csv, options = {}) => {
     points.push(point);
   }
   return formatTelemetry(points);
+};
+var fromCsvTelemetryWithDiagnostics = (csv, options = {}) => {
+  const telemetry = fromCsvTelemetry(csv, options);
+  const sourceSamples = csv.split(/\r?\n/).map((row) => row.trim()).filter((row) => row.length > 0).length - (options.hasHeader ?? true ? 1 : 0);
+  return toAdapterResult("csv", telemetry, Math.max(sourceSamples, 0), options);
 };
 
 // src/utils/computations.ts
@@ -909,9 +1115,7 @@ var resolveChannels = (channels) => {
     return TELEMETRY_CHANNELS;
   }
   const unique = Array.from(new Set(channels));
-  return unique.filter(
-    (channel) => TELEMETRY_CHANNELS.includes(channel)
-  );
+  return unique.filter((channel) => TELEMETRY_CHANNELS.includes(channel));
 };
 var exportToCsv = (telemetry, options = {}) => {
   const {
@@ -1039,6 +1243,10 @@ var THROTTLE_KEYS2 = ["Throttle", "throttle"];
 var BRAKE_KEYS2 = ["Brake", "brake"];
 var X_KEYS2 = ["X", "x", "PositionX", "posX"];
 var Y_KEYS2 = ["Y", "y", "PositionY", "posY"];
+var GEAR_KEYS = ["nGear", "NGear", "gear"];
+var ERS_DEPLOYMENT_KEYS = ["ERSDeploy", "ERSDeployment", "ersDeployment"];
+var ERS_HARVEST_KEYS = ["ERSHarvest", "ersHarvest"];
+var BATTERY_LEVEL_KEYS = ["BatteryLevel", "batteryLevel", "soc"];
 var fromPoints = (points) => {
   const normalized = points.map((point, index) => ({
     time: toSeconds(pickField(point, TIME_KEYS2)) ?? index,
@@ -1046,7 +1254,11 @@ var fromPoints = (points) => {
     throttle: toNumber2(pickField(point, THROTTLE_KEYS2)) ?? 0,
     brake: toNumber2(pickField(point, BRAKE_KEYS2)) ?? 0,
     x: toNumber2(pickField(point, X_KEYS2)) ?? 0,
-    y: toNumber2(pickField(point, Y_KEYS2)) ?? 0
+    y: toNumber2(pickField(point, Y_KEYS2)) ?? 0,
+    gear: toNumber2(pickField(point, GEAR_KEYS)) ?? void 0,
+    ersDeployment: toNumber2(pickField(point, ERS_DEPLOYMENT_KEYS)) ?? void 0,
+    ersHarvest: toNumber2(pickField(point, ERS_HARVEST_KEYS)) ?? void 0,
+    batteryLevel: toNumber2(pickField(point, BATTERY_LEVEL_KEYS)) ?? void 0
   }));
   return formatTelemetry(normalized);
 };
@@ -1066,8 +1278,17 @@ var fromFastF1Telemetry = (input) => {
     throttle: input.Throttle ?? input.throttle,
     brake: input.Brake ?? input.brake,
     x: input.X ?? input.x,
-    y: input.Y ?? input.y
+    y: input.Y ?? input.y,
+    gear: input.nGear ?? input.NGear ?? input.gear,
+    ersDeployment: input.ERSDeploy ?? input.ERSDeployment ?? input.ersDeployment,
+    ersHarvest: input.ERSHarvest ?? input.ersHarvest,
+    batteryLevel: input.BatteryLevel ?? input.batteryLevel ?? input.soc
   });
+};
+var fromFastF1TelemetryWithDiagnostics = (input, options = {}) => {
+  const telemetry = fromFastF1Telemetry(input);
+  const sourceSamples = Array.isArray(input) ? input.length : Array.isArray(input.records) ? input.records.length : Array.isArray(input.telemetry) ? input.telemetry.length : telemetry.time.length;
+  return toAdapterResult("fastf1", telemetry, sourceSamples, options);
 };
 
 // src/adapters/openf1.ts
@@ -1077,6 +1298,13 @@ var THROTTLE_KEYS3 = ["throttle", "throttle_percentage"];
 var BRAKE_KEYS3 = ["brake", "brake_percentage"];
 var X_KEYS3 = ["x", "position_x", "world_x"];
 var Y_KEYS3 = ["y", "position_y", "world_y"];
+var GEAR_KEYS2 = ["n_gear", "nGear", "gear"];
+var AIR_TEMP_KEYS = ["air_temperature", "airTemp"];
+var TRACK_TEMP_KEYS = ["track_temperature", "trackTemp"];
+var HUMIDITY_KEYS = ["humidity"];
+var WIND_SPEED_KEYS = ["wind_speed", "windSpeed"];
+var RAINFALL_KEYS = ["rainfall", "rain_intensity"];
+var PRESSURE_KEYS = ["air_pressure", "pressure"];
 var fromOpenF1Telemetry = (input) => {
   const points = input.map((point, index) => ({
     time: toSeconds(pickField(point, TIME_KEYS3)) ?? index,
@@ -1084,10 +1312,18 @@ var fromOpenF1Telemetry = (input) => {
     throttle: toNumber2(pickField(point, THROTTLE_KEYS3)) ?? 0,
     brake: toNumber2(pickField(point, BRAKE_KEYS3)) ?? 0,
     x: toNumber2(pickField(point, X_KEYS3)) ?? 0,
-    y: toNumber2(pickField(point, Y_KEYS3)) ?? 0
+    y: toNumber2(pickField(point, Y_KEYS3)) ?? 0,
+    gear: toNumber2(pickField(point, GEAR_KEYS2)) ?? void 0,
+    airTemp: toNumber2(pickField(point, AIR_TEMP_KEYS)) ?? void 0,
+    trackTemp: toNumber2(pickField(point, TRACK_TEMP_KEYS)) ?? void 0,
+    humidity: toNumber2(pickField(point, HUMIDITY_KEYS)) ?? void 0,
+    windSpeed: toNumber2(pickField(point, WIND_SPEED_KEYS)) ?? void 0,
+    rainfall: toNumber2(pickField(point, RAINFALL_KEYS)) ?? void 0,
+    pressure: toNumber2(pickField(point, PRESSURE_KEYS)) ?? void 0
   }));
   return formatTelemetry(points);
 };
+var fromOpenF1TelemetryWithDiagnostics = (input, options = {}) => toAdapterResult("openf1", fromOpenF1Telemetry(input), input.length, options);
 
 // src/adapters/ergast.ts
 var asRequiredNumber = (value) => toNumber2(value) ?? 0;
@@ -1180,11 +1416,13 @@ var fromMultiViewerCarData = (data) => {
       throttle: toNumber2(entry.channels.throttle) ?? 0,
       brake: toNumber2(brakeValue) ?? 0,
       x: toNumber2(entry.position?.x) ?? 0,
-      y: toNumber2(entry.position?.y) ?? 0
+      y: toNumber2(entry.position?.y) ?? 0,
+      gear: toNumber2(entry.channels.gear) ?? void 0
     };
   });
   return formatTelemetry(points);
 };
+var fromMultiViewerCarDataWithDiagnostics = (data, options = {}) => toAdapterResult("multiviewer", fromMultiViewerCarData(data), data.length, options);
 var fromMultiViewerTiming = (data) => data.map((entry) => ({
   driverNumber: entry.driverNumber,
   driverCode: entry.driverCode,
@@ -1208,7 +1446,17 @@ var DEFAULT_FIELD_MAPPING = {
   throttle: "throttle",
   brake: "brake",
   x: "x",
-  y: "y"
+  y: "y",
+  gear: "gear",
+  ersDeployment: "ersDeployment",
+  ersHarvest: "ersHarvest",
+  batteryLevel: "batteryLevel",
+  airTemp: "airTemp",
+  trackTemp: "trackTemp",
+  humidity: "humidity",
+  windSpeed: "windSpeed",
+  rainfall: "rainfall",
+  pressure: "pressure"
 };
 var resolvePath = (obj, path) => path.split(".").reduce(
   (current, key) => current && typeof current === "object" ? current[key] : void 0,
@@ -1243,23 +1491,61 @@ var fromJsonTelemetry = (input, options = {}) => {
         throttle: resolvePath(point, fields.throttle),
         brake: resolvePath(point, fields.brake),
         x: resolvePath(point, fields.x),
-        y: resolvePath(point, fields.y)
+        y: resolvePath(point, fields.y),
+        gear: resolvePath(point, fields.gear),
+        ersDeployment: resolvePath(point, fields.ersDeployment),
+        ersHarvest: resolvePath(point, fields.ersHarvest),
+        batteryLevel: resolvePath(point, fields.batteryLevel),
+        airTemp: resolvePath(point, fields.airTemp),
+        trackTemp: resolvePath(point, fields.trackTemp),
+        humidity: resolvePath(point, fields.humidity),
+        windSpeed: resolvePath(point, fields.windSpeed),
+        rainfall: resolvePath(point, fields.rainfall),
+        pressure: resolvePath(point, fields.pressure)
       };
     });
-    return formatTelemetry(rows);
+    const telemetryData = options.eventsPath && !Array.isArray(input) ? {
+      telemetry: rows,
+      events: resolvePath(input, options.eventsPath)
+    } : rows;
+    return formatTelemetry(telemetryData);
   }
   if (isColumnOriented(source)) {
-    return formatTelemetry({
+    const telemetryColumns = {
       time: resolvePath(source, fields.time),
       speed: resolvePath(source, fields.speed),
       throttle: resolvePath(source, fields.throttle),
       brake: resolvePath(source, fields.brake),
       x: resolvePath(source, fields.x),
-      y: resolvePath(source, fields.y)
-    });
+      y: resolvePath(source, fields.y),
+      gear: resolvePath(source, fields.gear),
+      ersDeployment: resolvePath(source, fields.ersDeployment),
+      ersHarvest: resolvePath(source, fields.ersHarvest),
+      batteryLevel: resolvePath(source, fields.batteryLevel),
+      airTemp: resolvePath(source, fields.airTemp),
+      trackTemp: resolvePath(source, fields.trackTemp),
+      humidity: resolvePath(source, fields.humidity),
+      windSpeed: resolvePath(source, fields.windSpeed),
+      rainfall: resolvePath(source, fields.rainfall),
+      pressure: resolvePath(source, fields.pressure)
+    };
+    const telemetryData = options.eventsPath && !Array.isArray(input) ? {
+      ...telemetryColumns,
+      events: resolvePath(input, options.eventsPath)
+    } : telemetryColumns;
+    return formatTelemetry(telemetryData);
   }
   warn2("fromJsonTelemetry: input did not resolve to telemetry rows or columns.");
   return formatTelemetry([]);
+};
+var fromJsonTelemetryWithDiagnostics = (input, options = {}) => {
+  const source = Array.isArray(input) ? input : options.dataPath ? resolvePath(input, options.dataPath) : input;
+  const sourceSamples = Array.isArray(source) ? source.length : isColumnOriented(source) ? Math.max(
+    0,
+    ...Object.values(source).map((entry) => Array.isArray(entry) ? entry.length : 0)
+  ) : 0;
+  const telemetry = fromJsonTelemetry(input, options);
+  return toAdapterResult("json", telemetry, sourceSamples, options);
 };
 
 // src/adapters/parquet.ts
@@ -1269,7 +1555,17 @@ var DEFAULT_PARQUET_MAPPING = {
   throttle: "Throttle",
   brake: "Brake",
   x: "X",
-  y: "Y"
+  y: "Y",
+  gear: "nGear",
+  ersDeployment: "ERSDeploy",
+  ersHarvest: "ERSHarvest",
+  batteryLevel: "BatteryLevel",
+  airTemp: "AirTemp",
+  trackTemp: "TrackTemp",
+  humidity: "Humidity",
+  windSpeed: "WindSpeed",
+  rainfall: "Rainfall",
+  pressure: "Pressure"
 };
 var fromParquet = (rows, options = {}) => {
   if (!Array.isArray(rows) || rows.length === 0) {
@@ -1286,11 +1582,22 @@ var fromParquet = (rows, options = {}) => {
       throttle: row[mapping.throttle],
       brake: row[mapping.brake],
       x: row[mapping.x],
-      y: row[mapping.y]
+      y: row[mapping.y],
+      gear: row[mapping.gear],
+      ersDeployment: row[mapping.ersDeployment],
+      ersHarvest: row[mapping.ersHarvest],
+      batteryLevel: row[mapping.batteryLevel],
+      airTemp: row[mapping.airTemp],
+      trackTemp: row[mapping.trackTemp],
+      humidity: row[mapping.humidity],
+      windSpeed: row[mapping.windSpeed],
+      rainfall: row[mapping.rainfall],
+      pressure: row[mapping.pressure]
     })
   );
   return formatTelemetry(remapped);
 };
+var fromParquetWithDiagnostics = (rows, options = {}) => toAdapterResult("parquet", fromParquet(rows, options), rows.length, options);
 
 // src/adapters/fetchOpenF1.ts
 var DEFAULT_OPEN_F1_BASE_URL = "https://api.openf1.org/v1";
@@ -1314,6 +1621,16 @@ var fetchOpenF1Telemetry = async (sessionKey, driverNumber, options = {}) => {
   });
   const data = await fetchJson(url, options);
   return fromOpenF1Telemetry(data ?? []);
+};
+var fetchOpenF1TelemetryWithDiagnostics = async (sessionKey, driverNumber, options = {}) => {
+  const baseUrl = options.baseUrl ?? DEFAULT_OPEN_F1_BASE_URL;
+  const url = buildUrl(baseUrl, "car_data", {
+    session_key: sessionKey,
+    driver_number: driverNumber
+  });
+  const data = await fetchJson(url, options);
+  const telemetry = fromOpenF1Telemetry(data ?? []);
+  return toAdapterResult("openf1-fetch", telemetry, (data ?? []).length, options);
 };
 var fetchOpenF1Sessions = async (year = (/* @__PURE__ */ new Date()).getUTCFullYear(), options = {}) => {
   const baseUrl = options.baseUrl ?? DEFAULT_OPEN_F1_BASE_URL;
@@ -2408,6 +2725,7 @@ export {
   findNearestIndex,
   formatTelemetry,
   fromCsvTelemetry,
+  fromCsvTelemetryWithDiagnostics,
   normalizeDistance,
   computeLapTimes,
   computeSectorTimes,
@@ -2420,13 +2738,19 @@ export {
   exportToJson,
   exportToCsv,
   fromFastF1Telemetry,
+  fromFastF1TelemetryWithDiagnostics,
   fromOpenF1Telemetry,
+  fromOpenF1TelemetryWithDiagnostics,
   fromErgastApi,
   fromMultiViewerCarData,
+  fromMultiViewerCarDataWithDiagnostics,
   fromMultiViewerTiming,
   fromJsonTelemetry,
+  fromJsonTelemetryWithDiagnostics,
   fromParquet,
+  fromParquetWithDiagnostics,
   fetchOpenF1Telemetry,
+  fetchOpenF1TelemetryWithDiagnostics,
   fetchOpenF1Sessions,
   fetchOpenF1Drivers,
   F1_TEAMS,
@@ -2450,4 +2774,4 @@ export {
   getSprintWeekends,
   getRaceByRound
 };
-//# sourceMappingURL=chunk-FATZZYEL.js.map
+//# sourceMappingURL=chunk-Q5LMR4KV.js.map

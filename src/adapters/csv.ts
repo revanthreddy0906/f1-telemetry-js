@@ -1,5 +1,6 @@
 import { formatTelemetry } from "../utils/formatTelemetry";
-import type { FormattedTelemetry, RawTelemetryPoint } from "../types/telemetry";
+import type { AdapterParseOptions, FormattedTelemetry, RawTelemetryPoint, TelemetryAdapterResult } from "../types/telemetry";
+import { toAdapterResult } from "./diagnostics";
 
 export interface CsvTelemetryOptions {
   delimiter?: "," | ";" | "\t";
@@ -16,6 +17,17 @@ const HEADER_KEY_MAP: Record<string, keyof RawTelemetryPoint> = {
   velocity: "speed",
   throttle: "throttle",
   brake: "brake",
+  gear: "gear",
+  ngear: "gear",
+  ersdeployment: "ersDeployment",
+  ersharvest: "ersHarvest",
+  batterylevel: "batteryLevel",
+  airtemp: "airTemp",
+  tracktemp: "trackTemp",
+  humidity: "humidity",
+  windspeed: "windSpeed",
+  rainfall: "rainfall",
+  pressure: "pressure",
   x: "x",
   y: "y"
 };
@@ -106,4 +118,16 @@ export const fromCsvTelemetry = (csv: string, options: CsvTelemetryOptions = {})
   }
 
   return formatTelemetry(points);
+};
+
+export const fromCsvTelemetryWithDiagnostics = (
+  csv: string,
+  options: CsvTelemetryOptions & AdapterParseOptions = {}
+): TelemetryAdapterResult => {
+  const telemetry = fromCsvTelemetry(csv, options);
+  const sourceSamples = csv
+    .split(/\r?\n/)
+    .map((row) => row.trim())
+    .filter((row) => row.length > 0).length - (options.hasHeader ?? true ? 1 : 0);
+  return toAdapterResult("csv", telemetry, Math.max(sourceSamples, 0), options);
 };

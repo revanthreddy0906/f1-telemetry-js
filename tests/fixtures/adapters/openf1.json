@@ -1,0 +1,35 @@
+[
+  {
+    "session_time": 0,
+    "speed": 112,
+    "throttle": 25,
+    "brake": 0,
+    "x": 3,
+    "y": 7,
+    "n_gear": 4,
+    "air_temperature": 29,
+    "track_temperature": 42
+  },
+  {
+    "session_time": 0.5,
+    "speed": 128,
+    "throttle": 41,
+    "brake": 0,
+    "x": 4,
+    "y": 8,
+    "n_gear": 5,
+    "air_temperature": 29.1,
+    "track_temperature": 42.2
+  },
+  {
+    "session_time": 1,
+    "speed": 136,
+    "throttle": 49,
+    "brake": 2,
+    "x": 5,
+    "y": 9,
+    "n_gear": 6,
+    "air_temperature": 29.3,
+    "track_temperature": 42.4
+  }
+]

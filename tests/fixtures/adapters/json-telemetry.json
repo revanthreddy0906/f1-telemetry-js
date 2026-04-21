@@ -1,0 +1,53 @@
+{
+  "payload": {
+    "telemetry": [
+      {
+        "t": 0,
+        "velocity": 90,
+        "controls": {
+          "throttlePct": 16,
+          "brakePct": 0
+        },
+        "pos": {
+          "px": 7,
+          "py": 1
+        },
+        "gear": 3
+      },
+      {
+        "t": 1,
+        "velocity": 108,
+        "controls": {
+          "throttlePct": 30,
+          "brakePct": 0
+        },
+        "pos": {
+          "px": 8,
+          "py": 2
+        },
+        "gear": 4
+      },
+      {
+        "t": 2,
+        "velocity": 122,
+        "controls": {
+          "throttlePct": 41,
+          "brakePct": 2
+        },
+        "pos": {
+          "px": 10,
+          "py": 4
+        },
+        "gear": 5
+      }
+    ],
+    "events": [
+      {
+        "time": 1.5,
+        "type": "drs",
+        "value": true,
+        "description": "DRS opened"
+      }
+    ]
+  }
+}

@@ -1,0 +1,26 @@
+[
+  {
+    "SessionTime": 0,
+    "Speed": 101,
+    "Throttle": 20,
+    "Brake": 0,
+    "X": 1,
+    "Y": 1
+  },
+  {
+    "SessionTime": 1,
+    "Speed": 118,
+    "Throttle": 35,
+    "Brake": 0,
+    "X": 2,
+    "Y": 2
+  },
+  {
+    "SessionTime": 2,
+    "Speed": 130,
+    "Throttle": 47,
+    "Brake": 4,
+    "X": 3,
+    "Y": 4
+  }
+]

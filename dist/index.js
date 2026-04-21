@@ -18,16 +18,23 @@ import {
   fetchOpenF1Drivers,
   fetchOpenF1Sessions,
   fetchOpenF1Telemetry,
+  fetchOpenF1TelemetryWithDiagnostics,
   findNearestIndex,
   formatTelemetry,
   fromCsvTelemetry,
+  fromCsvTelemetryWithDiagnostics,
   fromErgastApi,
   fromFastF1Telemetry,
+  fromFastF1TelemetryWithDiagnostics,
   fromJsonTelemetry,
+  fromJsonTelemetryWithDiagnostics,
   fromMultiViewerCarData,
+  fromMultiViewerCarDataWithDiagnostics,
   fromMultiViewerTiming,
   fromOpenF1Telemetry,
+  fromOpenF1TelemetryWithDiagnostics,
   fromParquet,
+  fromParquetWithDiagnostics,
   getDriver,
   getDriverColor,
   getFlag,
@@ -45,7 +52,7 @@ import {
   normalizeDistance,
   processSeriesData,
   validateTelemetry
-} from "./chunk-FATZZYEL.js";
+} from "./chunk-Q5LMR4KV.js";
 
 // src/components/SpeedChart.tsx
 import { useMemo as useMemo2 } from "react";
@@ -3516,6 +3523,7 @@ var useTelemetry = (options = {}) => {
     adapter,
     fetcher,
     validate: shouldValidate = true,
+    validationMode = "strict",
     processing
   } = options;
   const [telemetry, setTelemetryState] = useState5(null);
@@ -3540,12 +3548,12 @@ var useTelemetry = (options = {}) => {
       setTelemetryState(processed);
       setError(null);
       if (shouldValidate) {
-        setValidation(validateTelemetry(processed, "useTelemetry"));
+        setValidation(validateTelemetry(processed, "useTelemetry", { mode: validationMode }));
       } else {
         setValidation(null);
       }
     },
-    [processing, shouldValidate]
+    [processing, shouldValidate, validationMode]
   );
   useEffect2(() => {
     if (data === void 0 || data === null) {
@@ -4066,16 +4074,23 @@ export {
   fetchOpenF1Drivers,
   fetchOpenF1Sessions,
   fetchOpenF1Telemetry,
+  fetchOpenF1TelemetryWithDiagnostics,
   findNearestIndex,
   formatTelemetry,
   fromCsvTelemetry,
+  fromCsvTelemetryWithDiagnostics,
   fromErgastApi,
   fromFastF1Telemetry,
+  fromFastF1TelemetryWithDiagnostics,
   fromJsonTelemetry,
+  fromJsonTelemetryWithDiagnostics,
   fromMultiViewerCarData,
+  fromMultiViewerCarDataWithDiagnostics,
   fromMultiViewerTiming,
   fromOpenF1Telemetry,
+  fromOpenF1TelemetryWithDiagnostics,
   fromParquet,
+  fromParquetWithDiagnostics,
   gearDistributionPanel,
   getDriver,
   getDriverColor,

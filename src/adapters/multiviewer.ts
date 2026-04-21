@@ -1,6 +1,7 @@
 import { formatTelemetry } from "../utils/formatTelemetry";
-import type { FormattedTelemetry, RawTelemetryPoint } from "../types/telemetry";
+import type { AdapterParseOptions, FormattedTelemetry, RawTelemetryPoint, TelemetryAdapterResult } from "../types/telemetry";
 import { parseLapTimeString, toNumber } from "./shared";
+import { toAdapterResult } from "./diagnostics";
 
 export interface MultiViewerCarData {
   timestamp: string;
@@ -90,12 +91,18 @@ export const fromMultiViewerCarData = (data: MultiViewerCarData[]): FormattedTel
       throttle: toNumber(entry.channels.throttle) ?? 0,
       brake: toNumber(brakeValue) ?? 0,
       x: toNumber(entry.position?.x) ?? 0,
-      y: toNumber(entry.position?.y) ?? 0
+      y: toNumber(entry.position?.y) ?? 0,
+      gear: toNumber(entry.channels.gear) ?? undefined
     };
   });
 
   return formatTelemetry(points);
 };
+
+export const fromMultiViewerCarDataWithDiagnostics = (
+  data: MultiViewerCarData[],
+  options: AdapterParseOptions = {}
+): TelemetryAdapterResult => toAdapterResult("multiviewer", fromMultiViewerCarData(data), data.length, options);
 
 export const fromMultiViewerTiming = (
   data: MultiViewerTimingData[]

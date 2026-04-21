@@ -5,6 +5,10 @@ type DownsampleStrategy = "every-nth" | "min-max";
 type LapComparisonMode = "overlay" | "delta";
 type TelemetryAnnotationType = "corner" | "drs" | "incident";
 type TelemetrySeverity = "low" | "medium" | "high";
+type ValidationMode = "strict" | "lenient";
+type IssueSeverity = "error" | "warning";
+type TelemetryExtraChannel = "gear" | "ersDeployment" | "ersHarvest" | "batteryLevel" | "airTemp" | "trackTemp" | "humidity" | "windSpeed" | "rainfall" | "pressure";
+type TelemetrySeriesKey = "time" | "speed" | "throttle" | "brake" | "x" | "y";
 interface TelemetryStyleTokens {
     background: string;
     border: string;
@@ -281,7 +285,14 @@ interface CsvExportOptions {
     delimiter?: "," | ";" | "\t";
     includeHeader?: boolean;
     precision?: number;
-    channels?: Array<keyof FormattedTelemetry>;
+    channels?: TelemetrySeriesKey[];
+}
+interface TelemetryEvent {
+    time: number;
+    type: string;
+    value?: number | string | boolean | null;
+    description?: string;
+    metadata?: Record<string, unknown>;
 }
 interface FormattedTelemetry {
     time: number[];
@@ -290,6 +301,8 @@ interface FormattedTelemetry {
     brake: number[];
     x: number[];
     y: number[];
+    channels?: Partial<Record<TelemetryExtraChannel, number[]>>;
+    events?: TelemetryEvent[];
 }
 type RawTelemetryPoint = Record<string, unknown>;
 type RawTelemetryInput = RawTelemetryPoint[] | Record<string, unknown>;
@@ -329,12 +342,55 @@ interface TelemetryDashboardProps {
     extensions?: TelemetryPanelExtension[];
 }
 interface TelemetryValidationIssue {
-    code: "INVALID_SERIES" | "INVALID_VALUE" | "LENGTH_MISMATCH" | "EMPTY_SERIES";
+    code: "INVALID_SERIES" | "INVALID_VALUE" | "LENGTH_MISMATCH" | "EMPTY_SERIES" | "SPARSE_SERIES";
     message: string;
+    severity: IssueSeverity;
+    channel?: TelemetrySeriesKey | TelemetryExtraChannel;
+    index?: number;
+    expectedLength?: number;
+    actualLength?: number;
+}
+interface TelemetryValidationOptions {
+    mode?: ValidationMode;
+    allowEmptySeries?: boolean;
+}
+interface TelemetryValidationDiagnostics {
+    context: string;
+    mode: ValidationMode;
+    totalIssues: number;
+    errorCount: number;
+    warningCount: number;
+    lengths: Partial<Record<TelemetrySeriesKey, number>>;
 }
 interface TelemetryValidationResult {
     isValid: boolean;
     issues: TelemetryValidationIssue[];
+    mode: ValidationMode;
+    diagnostics: TelemetryValidationDiagnostics;
+}
+type AdapterName = "csv" | "fastf1" | "openf1" | "ergast" | "multiviewer" | "json" | "parquet" | "openf1-fetch";
+interface AdapterParseOptions {
+    validationMode?: ValidationMode;
+}
+interface TelemetryAdapterDiagnostic {
+    code: string;
+    severity: IssueSeverity;
+    message: string;
+    field?: string;
+}
+interface TelemetryAdapterDiagnostics {
+    adapter: AdapterName;
+    sourceSamples: number;
+    parsedSamples: number;
+    mode: ValidationMode;
+    errorCount: number;
+    warningCount: number;
+    diagnostics: TelemetryAdapterDiagnostic[];
+}
+interface TelemetryAdapterResult {
+    telemetry: FormattedTelemetry;
+    validation: TelemetryValidationResult;
+    diagnostics: TelemetryAdapterDiagnostics;
 }
 
 /**
@@ -355,7 +411,7 @@ declare const alignSeriesLengths: (context: string, time: number[], seriesMap: R
  *
  * Checks required channels, finite numeric values, and channel-length alignment.
  */
-declare const validateTelemetry: (telemetry: Partial<FormattedTelemetry>, context?: string) => TelemetryValidationResult;
+declare const validateTelemetry: (telemetry: Partial<FormattedTelemetry>, context?: string, options?: TelemetryValidationOptions) => TelemetryValidationResult;
 
 type SeriesMap = Record<string, number[]>;
 interface ProcessSeriesInput {
@@ -545,6 +601,7 @@ type FastF1TelemetryInput = FastF1TelemetryPoint[] | Record<string, unknown>;
  * Convert FastF1 telemetry payloads into normalized telemetry arrays.
  */
 declare const fromFastF1Telemetry: (input: FastF1TelemetryInput) => FormattedTelemetry;
+declare const fromFastF1TelemetryWithDiagnostics: (input: FastF1TelemetryInput, options?: AdapterParseOptions) => TelemetryAdapterResult;
 
 interface OpenF1TelemetryPoint {
     [key: string]: unknown;
@@ -553,6 +610,13 @@ interface OpenF1TelemetryPoint {
     speed?: number | string;
     throttle?: number | string;
     brake?: number | string;
+    n_gear?: number | string;
+    air_temperature?: number | string;
+    track_temperature?: number | string;
+    humidity?: number | string;
+    wind_speed?: number | string;
+    rainfall?: number | string;
+    air_pressure?: number | string;
     x?: number | string;
     y?: number | string;
 }
@@ -560,6 +624,7 @@ interface OpenF1TelemetryPoint {
  * Convert OpenF1 telemetry records into normalized telemetry arrays.
  */
 declare const fromOpenF1Telemetry: (input: OpenF1TelemetryPoint[]) => FormattedTelemetry;
+declare const fromOpenF1TelemetryWithDiagnostics: (input: OpenF1TelemetryPoint[], options?: AdapterParseOptions) => TelemetryAdapterResult;
 
 interface CsvTelemetryOptions {
     delimiter?: "," | ";" | "\t";
@@ -569,6 +634,7 @@ interface CsvTelemetryOptions {
  * Parse CSV telemetry text into normalized telemetry arrays.
  */
 declare const fromCsvTelemetry: (csv: string, options?: CsvTelemetryOptions) => FormattedTelemetry;
+declare const fromCsvTelemetryWithDiagnostics: (csv: string, options?: CsvTelemetryOptions & AdapterParseOptions) => TelemetryAdapterResult;
 
 interface ErgastDriver {
     driverId: string;
@@ -716,6 +782,7 @@ interface MultiViewerParsedTiming {
     tyreAge: number | null;
 }
 declare const fromMultiViewerCarData: (data: MultiViewerCarData[]) => FormattedTelemetry;
+declare const fromMultiViewerCarDataWithDiagnostics: (data: MultiViewerCarData[], options?: AdapterParseOptions) => TelemetryAdapterResult;
 declare const fromMultiViewerTiming: (data: MultiViewerTimingData[]) => MultiViewerParsedTiming[];
 
 interface JsonFieldMapping {
@@ -725,21 +792,36 @@ interface JsonFieldMapping {
     brake?: string;
     x?: string;
     y?: string;
+    gear?: string;
+    ersDeployment?: string;
+    ersHarvest?: string;
+    batteryLevel?: string;
+    airTemp?: string;
+    trackTemp?: string;
+    humidity?: string;
+    windSpeed?: string;
+    rainfall?: string;
+    pressure?: string;
 }
 interface JsonTelemetryOptions {
     fieldMapping?: JsonFieldMapping;
     dataPath?: string;
+    eventsPath?: string;
 }
 declare const fromJsonTelemetry: (input: unknown, options?: JsonTelemetryOptions) => FormattedTelemetry;
+declare const fromJsonTelemetryWithDiagnostics: (input: unknown, options?: JsonTelemetryOptions & AdapterParseOptions) => TelemetryAdapterResult;
 
 interface ParquetTelemetryOptions {
     fieldMapping?: JsonFieldMapping;
 }
 declare const fromParquet: (rows: Record<string, unknown>[], options?: ParquetTelemetryOptions) => FormattedTelemetry;
+declare const fromParquetWithDiagnostics: (rows: Record<string, unknown>[], options?: ParquetTelemetryOptions & AdapterParseOptions) => TelemetryAdapterResult;
 
 interface OpenF1FetchOptions {
     baseUrl?: string;
     signal?: AbortSignal;
+}
+interface OpenF1FetchTelemetryOptions extends OpenF1FetchOptions, AdapterParseOptions {
 }
 interface OpenF1SessionInfo {
     sessionKey: number;
@@ -758,6 +840,7 @@ interface OpenF1DriverInfo {
     teamColour: string;
 }
 declare const fetchOpenF1Telemetry: (sessionKey: number, driverNumber: number, options?: OpenF1FetchOptions) => Promise<FormattedTelemetry>;
+declare const fetchOpenF1TelemetryWithDiagnostics: (sessionKey: number, driverNumber: number, options?: OpenF1FetchTelemetryOptions) => Promise<TelemetryAdapterResult>;
 declare const fetchOpenF1Sessions: (year?: number, options?: OpenF1FetchOptions) => Promise<OpenF1SessionInfo[]>;
 declare const fetchOpenF1Drivers: (sessionKey: number, options?: OpenF1FetchOptions) => Promise<OpenF1DriverInfo[]>;
 
@@ -854,4 +937,4 @@ declare const getNextRace: (today?: Date) => RaceWeekend | undefined;
 declare const getSprintWeekends: () => RaceWeekend[];
 declare const getRaceByRound: (round: number) => RaceWeekend | undefined;
 
-export { type JsonTelemetryOptions as $, type AnnotationProps as A, type ErgastParsedData as B, type ChartContainerProps as C, type DataProcessingOptions as D, type EnergyChartProps as E, type FormattedTelemetry as F, type GearChartProps as G, type ErgastRaceData as H, type F1Driver as I, type F1Team as J, type F1Track as K, type LapComparisonChartProps as L, type MiniSectorsProps as M, F1_DRIVERS as N, F1_TEAMS as O, type PositionChartProps as P, FLAG_TYPES as Q, type RadarChartProps as R, type SpeedChartProps as S, type ThrottleBrakeChartProps as T, type FastF1TelemetryInput as U, type FastF1TelemetryPoint as V, type WeatherWidgetProps as W, type FlagType as X, type GapDataPoint as Y, type JsonExportFormat as Z, type JsonFieldMapping as _, type TrackMapProps as a, getFlag as a$, type LapComparisonMode as a0, type LapSectors as a1, type LapTime as a2, type MultiViewerCarData as a3, type MultiViewerParsedTiming as a4, type MultiViewerSessionData as a5, type MultiViewerTimingData as a6, type OpenF1DriverInfo as a7, type OpenF1FetchOptions as a8, type OpenF1SessionInfo as a9, type TyreCompoundInfo as aA, type TyreStint as aB, type WeatherDataPoint as aC, type WeatherMetric as aD, classifyTyreCompound as aE, computeLapTimes as aF, computeSectorTimes as aG, computeSpeedDelta as aH, computeTimeDelta as aI, detectOvertakes as aJ, exportToCsv as aK, exportToJson as aL, fetchOpenF1Drivers as aM, fetchOpenF1Sessions as aN, fetchOpenF1Telemetry as aO, findNearestIndex as aP, formatTelemetry as aQ, fromCsvTelemetry as aR, fromErgastApi as aS, fromFastF1Telemetry as aT, fromJsonTelemetry as aU, fromMultiViewerCarData as aV, fromMultiViewerTiming as aW, fromOpenF1Telemetry as aX, fromParquet as aY, getDriver as aZ, getDriverColor as a_, type OpenF1TelemetryPoint as aa, type OvertakeEvent as ab, type ParquetTelemetryOptions as ac, type ParsedLapTimes as ad, type ParsedRaceResult as ae, type PitStop as af, RACE_CALENDAR_2025 as ag, RACE_COMPOUND_ALLOCATIONS as ah, type RaceCompoundAllocation as ai, type RaceWeekend as aj, type RawTelemetryInput as ak, type RawTelemetryPoint as al, type SectorComparison as am, type SectorSplit as an, type SectorTime as ao, TEAM_COLORS as ap, TRACKS as aq, TYRE_COMPOUNDS as ar, type TelemetryAnnotationType as as, type TelemetryPanelRenderContext as at, type TelemetrySeverity as au, type TelemetryValidationIssue as av, type TelemetryWindow as aw, type TimeDeltaPoint as ax, type TyreClassification as ay, type TyreCompound as az, type TelemetryDashboardProps as b, getNextRace as b0, getRaceByRound as b1, getRaceCompounds as b2, getSprintWeekends as b3, getTeam as b4, getTeamDrivers as b5, getTrack as b6, getTrackIds as b7, getTyreColor as b8, interpolateTelemetry as b9, mergeTelemetry as ba, normalizeDistance as bb, processSeriesData as bc, validateTelemetry as bd, alignSeriesLengths as be, sanitizeNumericArray as bf, type TyreStrategyTimelineProps as c, type GapChartProps as d, type SpeedHeatmapTrackMapProps as e, type PitStopTimelineProps as f, type ThemeMode as g, type TelemetryStyleTokens as h, type TelemetryValidationResult as i, type TelemetryAnnotation as j, type TelemetryPanelExtension as k, type CsvExportOptions as l, type CsvTelemetryOptions as m, type CursorSyncProps as n, type DRSZone as o, type DeltaPoint as p, type DistanceBasedTelemetry as q, type DownsampleStrategy as r, type DriverGapData as s, type DriverLapTelemetry as t, type DriverMetrics as u, type DriverPitStops as v, type DriverPositionData as w, type DriverPositionHistory as x, type DriverSectorData as y, type DriverStrategy as z };
+export { type GapDataPoint as $, type AdapterName as A, type DriverSectorData as B, type ChartContainerProps as C, type DataProcessingOptions as D, type EnergyChartProps as E, type FormattedTelemetry as F, type GearChartProps as G, type DriverStrategy as H, type ErgastParsedData as I, type ErgastRaceData as J, type F1Driver as K, type LapComparisonChartProps as L, type MiniSectorsProps as M, type F1Team as N, type F1Track as O, type PositionChartProps as P, F1_DRIVERS as Q, type RadarChartProps as R, type SpeedChartProps as S, type ThrottleBrakeChartProps as T, F1_TEAMS as U, type ValidationMode as V, type WeatherWidgetProps as W, FLAG_TYPES as X, type FastF1TelemetryInput as Y, type FastF1TelemetryPoint as Z, type FlagType as _, type TrackMapProps as a, fetchOpenF1Telemetry as a$, type IssueSeverity as a0, type JsonExportFormat as a1, type JsonFieldMapping as a2, type JsonTelemetryOptions as a3, type LapComparisonMode as a4, type LapSectors as a5, type LapTime as a6, type MultiViewerCarData as a7, type MultiViewerParsedTiming as a8, type MultiViewerSessionData as a9, type TelemetryAnnotationType as aA, type TelemetryEvent as aB, type TelemetryExtraChannel as aC, type TelemetryPanelRenderContext as aD, type TelemetrySeriesKey as aE, type TelemetrySeverity as aF, type TelemetryValidationDiagnostics as aG, type TelemetryValidationIssue as aH, type TelemetryValidationOptions as aI, type TelemetryWindow as aJ, type TimeDeltaPoint as aK, type TyreClassification as aL, type TyreCompound as aM, type TyreCompoundInfo as aN, type TyreStint as aO, type WeatherDataPoint as aP, type WeatherMetric as aQ, classifyTyreCompound as aR, computeLapTimes as aS, computeSectorTimes as aT, computeSpeedDelta as aU, computeTimeDelta as aV, detectOvertakes as aW, exportToCsv as aX, exportToJson as aY, fetchOpenF1Drivers as aZ, fetchOpenF1Sessions as a_, type MultiViewerTimingData as aa, type OpenF1DriverInfo as ab, type OpenF1FetchOptions as ac, type OpenF1FetchTelemetryOptions as ad, type OpenF1SessionInfo as ae, type OpenF1TelemetryPoint as af, type OvertakeEvent as ag, type ParquetTelemetryOptions as ah, type ParsedLapTimes as ai, type ParsedRaceResult as aj, type PitStop as ak, RACE_CALENDAR_2025 as al, RACE_COMPOUND_ALLOCATIONS as am, type RaceCompoundAllocation as an, type RaceWeekend as ao, type RawTelemetryInput as ap, type RawTelemetryPoint as aq, type SectorComparison as ar, type SectorSplit as as, type SectorTime as at, TEAM_COLORS as au, TRACKS as av, TYRE_COMPOUNDS as aw, type TelemetryAdapterDiagnostic as ax, type TelemetryAdapterDiagnostics as ay, type TelemetryAdapterResult as az, type TelemetryDashboardProps as b, fetchOpenF1TelemetryWithDiagnostics as b0, findNearestIndex as b1, formatTelemetry as b2, fromCsvTelemetry as b3, fromCsvTelemetryWithDiagnostics as b4, fromErgastApi as b5, fromFastF1Telemetry as b6, fromFastF1TelemetryWithDiagnostics as b7, fromJsonTelemetry as b8, fromJsonTelemetryWithDiagnostics as b9, fromMultiViewerCarData as ba, fromMultiViewerCarDataWithDiagnostics as bb, fromMultiViewerTiming as bc, fromOpenF1Telemetry as bd, fromOpenF1TelemetryWithDiagnostics as be, fromParquet as bf, fromParquetWithDiagnostics as bg, getDriver as bh, getDriverColor as bi, getFlag as bj, getNextRace as bk, getRaceByRound as bl, getRaceCompounds as bm, getSprintWeekends as bn, getTeam as bo, getTeamDrivers as bp, getTrack as bq, getTrackIds as br, getTyreColor as bs, interpolateTelemetry as bt, mergeTelemetry as bu, normalizeDistance as bv, processSeriesData as bw, validateTelemetry as bx, alignSeriesLengths as by, sanitizeNumericArray as bz, type TyreStrategyTimelineProps as c, type GapChartProps as d, type SpeedHeatmapTrackMapProps as e, type PitStopTimelineProps as f, type ThemeMode as g, type TelemetryStyleTokens as h, type TelemetryValidationResult as i, type TelemetryAnnotation as j, type TelemetryPanelExtension as k, type AdapterParseOptions as l, type AnnotationProps as m, type CsvExportOptions as n, type CsvTelemetryOptions as o, type CursorSyncProps as p, type DRSZone as q, type DeltaPoint as r, type DistanceBasedTelemetry as s, type DownsampleStrategy as t, type DriverGapData as u, type DriverLapTelemetry as v, type DriverMetrics as w, type DriverPitStops as x, type DriverPositionData as y, type DriverPositionHistory as z };

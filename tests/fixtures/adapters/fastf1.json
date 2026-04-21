@@ -1,0 +1,32 @@
+[
+  {
+    "SessionTime": 0,
+    "Speed": 105,
+    "Throttle": 18,
+    "Brake": 0,
+    "X": 10,
+    "Y": 5,
+    "nGear": 4,
+    "ERSDeploy": 20
+  },
+  {
+    "SessionTime": 1,
+    "Speed": 123,
+    "Throttle": 36,
+    "Brake": 0,
+    "X": 11,
+    "Y": 6,
+    "nGear": 5,
+    "ERSDeploy": 24
+  },
+  {
+    "SessionTime": 2,
+    "Speed": 140,
+    "Throttle": 52,
+    "Brake": 3,
+    "X": 13,
+    "Y": 8,
+    "nGear": 6,
+    "ERSDeploy": 30
+  }
+]

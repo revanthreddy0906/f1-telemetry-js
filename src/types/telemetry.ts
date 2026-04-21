@@ -5,6 +5,20 @@ export type DownsampleStrategy = "every-nth" | "min-max";
 export type LapComparisonMode = "overlay" | "delta";
 export type TelemetryAnnotationType = "corner" | "drs" | "incident";
 export type TelemetrySeverity = "low" | "medium" | "high";
+export type ValidationMode = "strict" | "lenient";
+export type IssueSeverity = "error" | "warning";
+export type TelemetryExtraChannel =
+  | "gear"
+  | "ersDeployment"
+  | "ersHarvest"
+  | "batteryLevel"
+  | "airTemp"
+  | "trackTemp"
+  | "humidity"
+  | "windSpeed"
+  | "rainfall"
+  | "pressure";
+export type TelemetrySeriesKey = "time" | "speed" | "throttle" | "brake" | "x" | "y";
 
 export interface TelemetryStyleTokens {
   background: string;
@@ -329,7 +343,15 @@ export interface CsvExportOptions {
   delimiter?: "," | ";" | "\t";
   includeHeader?: boolean;
   precision?: number;
-  channels?: Array<keyof FormattedTelemetry>;
+  channels?: TelemetrySeriesKey[];
+}
+
+export interface TelemetryEvent {
+  time: number;
+  type: string;
+  value?: number | string | boolean | null;
+  description?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface FormattedTelemetry {
@@ -339,6 +361,8 @@ export interface FormattedTelemetry {
   brake: number[];
   x: number[];
   y: number[];
+  channels?: Partial<Record<TelemetryExtraChannel, number[]>>;
+  events?: TelemetryEvent[];
 }
 
 export type RawTelemetryPoint = Record<string, unknown>;
@@ -383,11 +407,69 @@ export interface TelemetryDashboardProps {
 }
 
 export interface TelemetryValidationIssue {
-  code: "INVALID_SERIES" | "INVALID_VALUE" | "LENGTH_MISMATCH" | "EMPTY_SERIES";
+  code: "INVALID_SERIES" | "INVALID_VALUE" | "LENGTH_MISMATCH" | "EMPTY_SERIES" | "SPARSE_SERIES";
   message: string;
+  severity: IssueSeverity;
+  channel?: TelemetrySeriesKey | TelemetryExtraChannel;
+  index?: number;
+  expectedLength?: number;
+  actualLength?: number;
+}
+
+export interface TelemetryValidationOptions {
+  mode?: ValidationMode;
+  allowEmptySeries?: boolean;
+}
+
+export interface TelemetryValidationDiagnostics {
+  context: string;
+  mode: ValidationMode;
+  totalIssues: number;
+  errorCount: number;
+  warningCount: number;
+  lengths: Partial<Record<TelemetrySeriesKey, number>>;
 }
 
 export interface TelemetryValidationResult {
   isValid: boolean;
   issues: TelemetryValidationIssue[];
+  mode: ValidationMode;
+  diagnostics: TelemetryValidationDiagnostics;
+}
+
+export type AdapterName =
+  | "csv"
+  | "fastf1"
+  | "openf1"
+  | "ergast"
+  | "multiviewer"
+  | "json"
+  | "parquet"
+  | "openf1-fetch";
+
+export interface AdapterParseOptions {
+  validationMode?: ValidationMode;
+}
+
+export interface TelemetryAdapterDiagnostic {
+  code: string;
+  severity: IssueSeverity;
+  message: string;
+  field?: string;
+}
+
+export interface TelemetryAdapterDiagnostics {
+  adapter: AdapterName;
+  sourceSamples: number;
+  parsedSamples: number;
+  mode: ValidationMode;
+  errorCount: number;
+  warningCount: number;
+  diagnostics: TelemetryAdapterDiagnostic[];
+}
+
+export interface TelemetryAdapterResult {
+  telemetry: FormattedTelemetry;
+  validation: TelemetryValidationResult;
+  diagnostics: TelemetryAdapterDiagnostics;
 }

@@ -1,6 +1,9 @@
 import type {
   FormattedTelemetry,
+  TelemetrySeriesKey,
+  ValidationMode,
   TelemetryValidationIssue,
+  TelemetryValidationOptions,
   TelemetryValidationResult
 } from "../types/telemetry";
 
@@ -88,26 +91,46 @@ export const alignSeriesLengths = (
  */
 export const validateTelemetry = (
   telemetry: Partial<FormattedTelemetry>,
-  context = "Telemetry"
+  context = "Telemetry",
+  options: TelemetryValidationOptions = {}
 ): TelemetryValidationResult => {
-  const requiredKeys: Array<keyof FormattedTelemetry> = ["time", "speed", "throttle", "brake", "x", "y"];
+  const requiredKeys: TelemetrySeriesKey[] = ["time", "speed", "throttle", "brake", "x", "y"];
   const issues: TelemetryValidationIssue[] = [];
-  const lengths: number[] = [];
+  const lengths: Partial<Record<TelemetrySeriesKey, number>> = {};
+  const mode: ValidationMode = options.mode ?? "strict";
+  const isLenient = mode === "lenient";
+  const allowEmptySeries = options.allowEmptySeries ?? isLenient;
 
   requiredKeys.forEach((key) => {
     const candidate = telemetry[key];
     if (!Array.isArray(candidate)) {
       issues.push({
         code: "INVALID_SERIES",
+        severity: "error",
+        channel: key,
         message: `${context}: "${key}" is missing or not an array.`
       });
       return;
     }
 
-    if (candidate.length === 0) {
+    lengths[key] = candidate.length;
+
+    if (candidate.length === 0 && !allowEmptySeries) {
       issues.push({
         code: "EMPTY_SERIES",
+        severity: isLenient ? "warning" : "error",
+        channel: key,
         message: `${context}: "${key}" is empty.`
+      });
+    }
+
+    if (candidate.length > 0 && candidate.length < 3) {
+      issues.push({
+        code: "SPARSE_SERIES",
+        severity: "warning",
+        channel: key,
+        actualLength: candidate.length,
+        message: `${context}: "${key}" has sparse data (${candidate.length} point(s)).`
       });
     }
 
@@ -115,29 +138,52 @@ export const validateTelemetry = (
       if (!Number.isFinite(value)) {
         issues.push({
           code: "INVALID_VALUE",
+          severity: "error",
+          channel: key,
+          index,
           message: `${context}: "${key}" contains a non-finite value at index ${index}.`
         });
       }
     });
-
-    lengths.push(candidate.length);
   });
 
-  if (lengths.length > 1 && Math.min(...lengths) !== Math.max(...lengths)) {
+  const lengthValues = Object.values(lengths);
+  const minLength = lengthValues.length === 0 ? 0 : Math.min(...lengthValues);
+  const maxLength = lengthValues.length === 0 ? 0 : Math.max(...lengthValues);
+  if (lengthValues.length > 1 && minLength !== maxLength) {
     issues.push({
       code: "LENGTH_MISMATCH",
+      severity: isLenient ? "warning" : "error",
+      expectedLength: minLength,
+      actualLength: maxLength,
       message: `${context}: telemetry arrays have inconsistent lengths.`
     });
   }
 
+  const errorCount = issues.filter((issue) => issue.severity === "error").length;
+  const warningCount = issues.length - errorCount;
+
   return {
-    isValid: issues.length === 0,
-    issues
+    isValid: errorCount === 0,
+    issues,
+    mode,
+    diagnostics: {
+      context,
+      mode,
+      totalIssues: issues.length,
+      errorCount,
+      warningCount,
+      lengths
+    }
   };
 };
 
 export const warnTelemetryIssues = (validation: TelemetryValidationResult) => {
-  if (!validation.isValid) {
-    validation.issues.forEach((issue) => warn(issue.message));
+  const warnableIssues = validation.issues.filter(
+    (issue) => issue.severity === "error" || issue.code !== "SPARSE_SERIES"
+  );
+  if (warnableIssues.length === 0) {
+    return;
   }
+  warnableIssues.forEach((issue) => warn(issue.message));
 };
