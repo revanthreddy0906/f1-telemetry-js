@@ -8,6 +8,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.1.1
+
+### Patch Changes
+
+- Publish metadata and docs refresh:
+  - finalized unscoped npm package presentation as `f1-telemetry-js`
+  - updated README/package metadata alignment and release artifacts
+
 ## [Unreleased]
 
 ### Added
