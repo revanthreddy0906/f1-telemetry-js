@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 
 export type ThemeMode = "light" | "dark" | "high-contrast";
-export type DownsampleStrategy = "every-nth" | "min-max";
+export type DownsampleStrategy = "every-nth" | "min-max" | "adaptive";
+export type TelemetryChartType = "line" | "track" | "scatter" | "bar";
 export type LapComparisonMode = "overlay" | "delta";
 export type TelemetryAnnotationType = "corner" | "drs" | "incident";
 export type TelemetrySeverity = "low" | "medium" | "high";
@@ -39,10 +40,16 @@ export interface TelemetryWindow {
   endTime?: number;
 }
 
+export interface AdaptiveDownsampleOptions {
+  viewportWidth?: number;
+  chartType?: TelemetryChartType;
+}
+
 export interface DataProcessingOptions {
   maxPoints?: number;
   downsampleStrategy?: DownsampleStrategy;
   window?: TelemetryWindow;
+  adaptive?: AdaptiveDownsampleOptions;
 }
 
 export interface CursorSyncProps {

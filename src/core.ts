@@ -5,6 +5,7 @@ export * from "./adapters";
 export { formatTelemetry } from "./utils/formatTelemetry";
 export { validateTelemetry, sanitizeNumericArray, alignSeriesLengths } from "./utils/validation";
 export { processSeriesData, findNearestIndex } from "./utils/processing";
+export { processSeriesDataInWorker } from "./utils/workerProcessing";
 export {
   normalizeDistance,
   computeLapTimes,
@@ -24,6 +25,7 @@ export * from "./constants";
 export type {
   ThemeMode,
   DownsampleStrategy,
+  TelemetryChartType,
   LapComparisonMode,
   TelemetryAnnotationType,
   TelemetrySeverity,
@@ -31,6 +33,7 @@ export type {
   IssueSeverity,
   TelemetryExtraChannel,
   TelemetrySeriesKey,
+  AdaptiveDownsampleOptions,
   DataProcessingOptions,
   TelemetryWindow,
   TelemetryStyleTokens,

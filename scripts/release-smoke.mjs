@@ -10,13 +10,17 @@ const fail = (message) => {
 const root = process.cwd();
 const distIndex = resolve(root, "dist/index.js");
 const distCore = resolve(root, "dist/core.js");
+const distPerformance = resolve(root, "dist/performance.js");
+const distAdapters = resolve(root, "dist/adapters.js");
 
-if (!existsSync(distIndex) || !existsSync(distCore)) {
+if (!existsSync(distIndex) || !existsSync(distCore) || !existsSync(distPerformance) || !existsSync(distAdapters)) {
   fail("Missing dist artifacts. Run `npm run build` before smoke checks.");
 }
 
 const indexModule = await import(pathToFileURL(distIndex).href);
 const coreModule = await import(pathToFileURL(distCore).href);
+const performanceModule = await import(pathToFileURL(distPerformance).href);
+const adaptersModule = await import(pathToFileURL(distAdapters).href);
 
 if (typeof indexModule.SpeedChart !== "function" || typeof indexModule.TelemetryDashboard !== "function") {
   fail("React entrypoint exports are incomplete.");
@@ -24,6 +28,20 @@ if (typeof indexModule.SpeedChart !== "function" || typeof indexModule.Telemetry
 
 if (typeof coreModule.formatTelemetry !== "function" || typeof coreModule.validateTelemetry !== "function") {
   fail("Core entrypoint exports are incomplete.");
+}
+
+if (
+  typeof performanceModule.processSeriesData !== "function" ||
+  typeof performanceModule.processSeriesDataInWorker !== "function"
+) {
+  fail("Performance entrypoint exports are incomplete.");
+}
+
+if (
+  typeof adaptersModule.fromOpenF1Telemetry !== "function" ||
+  typeof adaptersModule.fromCsvTelemetry !== "function"
+) {
+  fail("Adapters entrypoint exports are incomplete.");
 }
 
 const validation = coreModule.validateTelemetry(
@@ -42,4 +60,4 @@ if (!validation || typeof validation.isValid !== "boolean" || !Array.isArray(val
   fail("validateTelemetry output shape is invalid.");
 }
 
-console.log("[release-smoke] index/core exports are valid.");
+console.log("[release-smoke] index/core/performance/adapters exports are valid.");

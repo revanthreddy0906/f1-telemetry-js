@@ -3,7 +3,9 @@ import { defineConfig } from "tsup";
 export default defineConfig({
   entry: {
     index: "src/index.ts",
-    core: "src/core.ts"
+    core: "src/core.ts",
+    performance: "src/performance.ts",
+    adapters: "src/adapters-entry.ts"
   },
   format: ["esm", "cjs"],
   dts: true,

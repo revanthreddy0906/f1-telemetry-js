@@ -1,0 +1,8 @@
+{
+  "formatTelemetry:small": 15.95,
+  "processSeriesData:small": 10.59,
+  "formatTelemetry:medium": 88.15,
+  "processSeriesData:medium": 49.96,
+  "formatTelemetry:large": 169.64,
+  "processSeriesData:large": 88.6
+}

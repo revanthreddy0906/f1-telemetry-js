@@ -7,7 +7,6 @@ import {
   TEAM_COLORS,
   TRACKS,
   TYRE_COMPOUNDS,
-  alignSeriesLengths,
   classifyTyreCompound,
   computeLapTimes,
   computeSectorTimes,
@@ -16,26 +15,6 @@ import {
   detectOvertakes,
   exportToCsv,
   exportToJson,
-  fetchOpenF1Drivers,
-  fetchOpenF1Sessions,
-  fetchOpenF1Telemetry,
-  fetchOpenF1TelemetryWithDiagnostics,
-  findNearestIndex,
-  formatTelemetry,
-  fromCsvTelemetry,
-  fromCsvTelemetryWithDiagnostics,
-  fromErgastApi,
-  fromFastF1Telemetry,
-  fromFastF1TelemetryWithDiagnostics,
-  fromJsonTelemetry,
-  fromJsonTelemetryWithDiagnostics,
-  fromMultiViewerCarData,
-  fromMultiViewerCarDataWithDiagnostics,
-  fromMultiViewerTiming,
-  fromOpenF1Telemetry,
-  fromOpenF1TelemetryWithDiagnostics,
-  fromParquet,
-  fromParquetWithDiagnostics,
   getDriver,
   getDriverColor,
   getFlag,
@@ -50,11 +29,39 @@ import {
   getTyreColor,
   interpolateTelemetry,
   mergeTelemetry,
-  normalizeDistance,
+  normalizeDistance
+} from "./chunk-M3GRIU7N.js";
+import {
+  findNearestIndex,
   processSeriesData,
+  processSeriesDataInWorker
+} from "./chunk-4CUWBBQN.js";
+import {
+  fetchOpenF1Drivers,
+  fetchOpenF1Sessions,
+  fetchOpenF1Telemetry,
+  fetchOpenF1TelemetryWithDiagnostics,
+  formatTelemetry,
+  fromCsvTelemetry,
+  fromCsvTelemetryWithDiagnostics,
+  fromErgastApi,
+  fromFastF1Telemetry,
+  fromFastF1TelemetryWithDiagnostics,
+  fromJsonTelemetry,
+  fromJsonTelemetryWithDiagnostics,
+  fromMultiViewerCarData,
+  fromMultiViewerCarDataWithDiagnostics,
+  fromMultiViewerTiming,
+  fromOpenF1Telemetry,
+  fromOpenF1TelemetryWithDiagnostics,
+  fromParquet,
+  fromParquetWithDiagnostics
+} from "./chunk-SPFWGXFA.js";
+import {
+  alignSeriesLengths,
   sanitizeNumericArray,
   validateTelemetry
-} from "./chunk-Q5LMR4KV.js";
+} from "./chunk-HW46UJWW.js";
 export {
   F1_DRIVERS,
   F1_TEAMS,
@@ -109,6 +116,7 @@ export {
   mergeTelemetry,
   normalizeDistance,
   processSeriesData,
+  processSeriesDataInWorker,
   sanitizeNumericArray,
   validateTelemetry
 };

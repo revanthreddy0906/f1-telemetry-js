@@ -90,6 +90,13 @@ Use the core subpath when you only need parsing, processing, computations, and c
 import { fromCsvTelemetry, TEAM_COLORS, computeTimeDelta } from "f1-telemetry-js/core";
 ```
 
+For finer-grained imports (smaller bundles in non-React apps):
+
+```ts
+import { processSeriesDataInWorker } from "f1-telemetry-js/performance";
+import { fromOpenF1Telemetry } from "f1-telemetry-js/adapters";
+```
+
 ## Utility APIs
 
 - `formatTelemetry`
@@ -130,6 +137,8 @@ const strictValidation = validateTelemetry(adapterResult.telemetry, "lap-check",
 - Optional extra telemetry channels: `gear`, `ersDeployment`, `ersHarvest`, `batteryLevel`, `airTemp`, `trackTemp`, `humidity`, `windSpeed`, `rainfall`, `pressure`
 - Structured adapter diagnostics for contract monitoring in CI
 - Validation modes: `strict` (errors on mismatches) and `lenient` (warnings for recoverable shape issues)
+- Adaptive downsampling support via `downsampleStrategy: "adaptive"` and `processing.adaptive`
+- Optional worker processing API: `processSeriesDataInWorker(...)`
 
 ## Plugin Extension API
 
@@ -183,6 +192,8 @@ Pair with a Svelte charting library such as `layercake` or `pancake`.
 npm run lint
 npm run test:run
 npm run build
+npm run benchmark:ci
+npm run benchmark:update-baseline
 npm run api:check
 npm run storybook
 ```

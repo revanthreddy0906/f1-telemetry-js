@@ -33,6 +33,13 @@ All notable changes to this project will be documented in this file.
     - `fetchOpenF1TelemetryWithDiagnostics`
   - release smoke script and CI/release gates: `smoke:release`
   - fixture-backed adapter contract tests and data reliability regression tests
+- Performance/scalability upgrades:
+  - new fine-grained subpath exports:
+    - `f1-telemetry-js/performance`
+    - `f1-telemetry-js/adapters`
+  - worker-capable processing API: `processSeriesDataInWorker`
+  - expanded benchmark matrix for small/medium/large telemetry sizes
+  - benchmark trend files: `benchmarks/perf-baseline.json` + generated `perf-latest.json`
 - Ten new visualization components:
   - `GearChart`
   - `EnergyChart`
@@ -102,6 +109,7 @@ All notable changes to this project will be documented in this file.
 - `validateTelemetry` now supports strict/lenient modes, issue severities, and diagnostics metadata.
 - `useTelemetry` now supports configurable `validationMode`.
 - Processing now normalizes out-of-order and duplicate timestamps before windowing/downsampling.
+- `processSeriesData` now supports adaptive decimation (`downsampleStrategy: "adaptive"`) with viewport-aware tuning.
 - Accessibility improvements across chart cards (focus ring + ARIA support).
 - Theme system extended with `high-contrast` mode and tokenized focus styling.
 - SSR-safe lazy chart rendering expanded (including radar support).

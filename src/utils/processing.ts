@@ -3,14 +3,14 @@ import { alignSeriesLengths, sanitizeNumericArray } from "./validation";
 
 type SeriesMap = Record<string, number[]>;
 
-interface ProcessSeriesInput {
+export interface ProcessSeriesInput {
   context: string;
   time: unknown;
   seriesMap: Record<string, unknown>;
   processing?: DataProcessingOptions;
 }
 
-interface ProcessSeriesOutput<T extends SeriesMap> {
+export interface ProcessSeriesOutput<T extends SeriesMap> {
   time: number[];
   seriesMap: T;
 }
@@ -156,12 +156,44 @@ const downsampleMinMax = (basis: number[], maxPoints: number): number[] => {
   return deduped;
 };
 
+const resolveAdaptiveConfig = (
+  timeLength: number,
+  processing?: DataProcessingOptions
+): { strategy: "every-nth" | "min-max"; maxPoints: number } => {
+  const configuredMaxPoints = processing?.maxPoints;
+  const viewportWidth = processing?.adaptive?.viewportWidth;
+  const chartType = processing?.adaptive?.chartType ?? "line";
+  const chartMultiplier: Record<typeof chartType, number> = {
+    line: 1.8,
+    track: 1.2,
+    scatter: 1.0,
+    bar: 1.4
+  };
+
+  const viewportDerivedPoints =
+    typeof viewportWidth === "number" && Number.isFinite(viewportWidth) && viewportWidth > 0
+      ? Math.max(200, Math.floor(viewportWidth * chartMultiplier[chartType]))
+      : undefined;
+
+  const maxPointsCandidates = [configuredMaxPoints, viewportDerivedPoints, timeLength]
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value) && value > 1)
+    .map((value) => Math.floor(value));
+  const resolvedMaxPoints =
+    maxPointsCandidates.length > 0 ? Math.min(...maxPointsCandidates) : Math.min(1500, timeLength);
+  const compressionRatio = timeLength / Math.max(resolvedMaxPoints, 1);
+  const strategy = compressionRatio > 3 || chartType === "line" || chartType === "track" ? "min-max" : "every-nth";
+
+  return { strategy, maxPoints: resolvedMaxPoints };
+};
+
 const applyDownsampling = (
   time: number[],
   seriesMap: SeriesMap,
   processing?: DataProcessingOptions
 ): { time: number[]; seriesMap: SeriesMap } => {
-  const maxPoints = processing?.maxPoints;
+  const strategy = processing?.downsampleStrategy ?? "every-nth";
+  const adaptive = strategy === "adaptive" ? resolveAdaptiveConfig(time.length, processing) : null;
+  const maxPoints = adaptive ? adaptive.maxPoints : processing?.maxPoints;
   if (typeof maxPoints !== "number" || maxPoints < 2 || time.length <= maxPoints) {
     return { time, seriesMap };
   }
@@ -169,7 +201,7 @@ const applyDownsampling = (
   const basisKey = Object.keys(seriesMap)[0];
   const basisSeries = basisKey ? seriesMap[basisKey] : time;
   const indices =
-    processing?.downsampleStrategy === "min-max"
+    (adaptive ? adaptive.strategy : strategy) === "min-max"
       ? downsampleMinMax(basisSeries, maxPoints)
       : downsampleEveryNth(time.length, maxPoints);
 

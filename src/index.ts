@@ -41,6 +41,7 @@ export { validateTelemetry } from "./utils/validation";
  * Apply windowing/downsampling to telemetry series while keeping channels aligned.
  */
 export { processSeriesData, findNearestIndex } from "./utils/processing";
+export { processSeriesDataInWorker } from "./utils/workerProcessing";
 
 export {
   normalizeDistance,
@@ -97,6 +98,7 @@ export * from "./constants";
 export type {
   ThemeMode,
   DownsampleStrategy,
+  TelemetryChartType,
   LapComparisonMode,
   TelemetryAnnotationType,
   TelemetrySeverity,
@@ -104,6 +106,7 @@ export type {
   IssueSeverity,
   TelemetryExtraChannel,
   TelemetrySeriesKey,
+  AdaptiveDownsampleOptions,
   ChartContainerProps,
   DataProcessingOptions,
   TelemetryWindow,

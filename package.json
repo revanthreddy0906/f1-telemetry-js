@@ -30,6 +30,16 @@
       "types": "./dist/core.d.ts",
       "import": "./dist/core.js",
       "require": "./dist/core.cjs"
+    },
+    "./performance": {
+      "types": "./dist/performance.d.ts",
+      "import": "./dist/performance.js",
+      "require": "./dist/performance.cjs"
+    },
+    "./adapters": {
+      "types": "./dist/adapters.d.ts",
+      "import": "./dist/adapters.js",
+      "require": "./dist/adapters.cjs"
     }
   },
   "files": [
@@ -46,6 +56,7 @@
     "test:run": "vitest run",
     "benchmark": "npm run build && node scripts/perf-benchmark.mjs",
     "benchmark:ci": "node scripts/perf-benchmark.mjs --ci",
+    "benchmark:update-baseline": "node scripts/perf-benchmark.mjs --update-baseline",
     "smoke:release": "node scripts/release-smoke.mjs",
     "api:check": "node scripts/check-api-diff.mjs",
     "api:update": "node scripts/check-api-diff.mjs --update",
