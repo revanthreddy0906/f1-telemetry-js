@@ -1,6 +1,6 @@
 {
   "name": "f1-telemetry-js",
-  "version": "1.1.1",
+  "version": "2.0.0",
   "description": "Reusable React + TypeScript telemetry visualization components for Formula 1 data.",
   "author": "Revanth Reddy (https://github.com/revanthreddy0906)",
   "license": "MIT",
@@ -20,6 +20,9 @@
     "node": ">=18"
   },
   "sideEffects": false,
+  "workspaces": [
+    "packages/*"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -40,6 +43,16 @@
       "types": "./dist/adapters.d.ts",
       "import": "./dist/adapters.js",
       "require": "./dist/adapters.cjs"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js",
+      "require": "./dist/react.cjs"
+    },
+    "./extensions": {
+      "types": "./dist/extensions.d.ts",
+      "import": "./dist/extensions.js",
+      "require": "./dist/extensions.cjs"
     }
   },
   "files": [
@@ -50,14 +63,17 @@
   ],
   "scripts": {
     "build": "tsup",
+    "build:wrappers": "npm run build --workspaces --if-present",
     "dev": "tsup --watch",
     "lint": "tsc --noEmit",
+    "lint:wrappers": "npm run lint --workspaces --if-present",
     "test": "vitest",
     "test:run": "vitest run",
     "benchmark": "npm run build && node scripts/perf-benchmark.mjs",
     "benchmark:ci": "node scripts/perf-benchmark.mjs --ci",
     "benchmark:update-baseline": "node scripts/perf-benchmark.mjs --update-baseline",
     "smoke:release": "node scripts/release-smoke.mjs",
+    "codemod:v2-imports": "node scripts/codemods/v2-imports.mjs",
     "api:check": "node scripts/check-api-diff.mjs",
     "api:update": "node scripts/check-api-diff.mjs --update",
     "semver:changeset": "node scripts/check-changeset.mjs",

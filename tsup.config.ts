@@ -5,7 +5,9 @@ export default defineConfig({
     index: "src/index.ts",
     core: "src/core.ts",
     performance: "src/performance.ts",
-    adapters: "src/adapters-entry.ts"
+    adapters: "src/adapters-entry.ts",
+    react: "src/react.ts",
+    extensions: "src/extensions.ts"
   },
   format: ["esm", "cjs"],
   dts: true,

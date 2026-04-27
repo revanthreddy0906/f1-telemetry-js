@@ -12,8 +12,17 @@ const distIndex = resolve(root, "dist/index.js");
 const distCore = resolve(root, "dist/core.js");
 const distPerformance = resolve(root, "dist/performance.js");
 const distAdapters = resolve(root, "dist/adapters.js");
+const distReact = resolve(root, "dist/react.js");
+const distExtensions = resolve(root, "dist/extensions.js");
 
-if (!existsSync(distIndex) || !existsSync(distCore) || !existsSync(distPerformance) || !existsSync(distAdapters)) {
+if (
+  !existsSync(distIndex) ||
+  !existsSync(distCore) ||
+  !existsSync(distPerformance) ||
+  !existsSync(distAdapters) ||
+  !existsSync(distReact) ||
+  !existsSync(distExtensions)
+) {
   fail("Missing dist artifacts. Run `npm run build` before smoke checks.");
 }
 
@@ -21,6 +30,8 @@ const indexModule = await import(pathToFileURL(distIndex).href);
 const coreModule = await import(pathToFileURL(distCore).href);
 const performanceModule = await import(pathToFileURL(distPerformance).href);
 const adaptersModule = await import(pathToFileURL(distAdapters).href);
+const reactModule = await import(pathToFileURL(distReact).href);
+const extensionsModule = await import(pathToFileURL(distExtensions).href);
 
 if (typeof indexModule.SpeedChart !== "function" || typeof indexModule.TelemetryDashboard !== "function") {
   fail("React entrypoint exports are incomplete.");
@@ -44,6 +55,17 @@ if (
   fail("Adapters entrypoint exports are incomplete.");
 }
 
+if (typeof reactModule.TelemetryDashboard !== "function" || typeof reactModule.useTelemetry !== "function") {
+  fail("React entrypoint exports are incomplete.");
+}
+
+if (
+  typeof extensionsModule.registerTelemetryPanel !== "function" ||
+  typeof extensionsModule.normalizeTelemetryPanelExtension !== "function"
+) {
+  fail("Extensions entrypoint exports are incomplete.");
+}
+
 const validation = coreModule.validateTelemetry(
   {
     time: [0, 1],
@@ -60,4 +82,4 @@ if (!validation || typeof validation.isValid !== "boolean" || !Array.isArray(val
   fail("validateTelemetry output shape is invalid.");
 }
 
-console.log("[release-smoke] index/core/performance/adapters exports are valid.");
+console.log("[release-smoke] index/core/performance/adapters/react/extensions exports are valid.");

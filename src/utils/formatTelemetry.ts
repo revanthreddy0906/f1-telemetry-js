@@ -6,6 +6,7 @@ import type {
   TelemetryExtraChannel
 } from "../types/telemetry";
 import { validateTelemetry, warnTelemetryIssues } from "./validation";
+import { normalizeTelemetryTime } from "./timeSemantics";
 
 const TIME_KEYS = ["time", "timestamp", "t", "elapsed", "elapsedTime"];
 const SPEED_KEYS = ["speed", "velocity", "v"];
@@ -169,7 +170,8 @@ export const formatTelemetry = (data: RawTelemetryInput): FormattedTelemetry => 
     throttle: [],
     brake: [],
     x: [],
-    y: []
+    y: [],
+    timeReference: "session"
   };
   const extraChannelBuffers = Object.fromEntries(
     Object.keys(EXTRA_CHANNEL_KEY_MAP).map((channel) => [channel, [] as number[]])
@@ -212,7 +214,8 @@ export const formatTelemetry = (data: RawTelemetryInput): FormattedTelemetry => 
     formatted.events = events;
   }
 
-  warnTelemetryIssues(validateTelemetry(formatted, "formatTelemetry"));
+  const normalized = normalizeTelemetryTime(formatted);
+  warnTelemetryIssues(validateTelemetry(normalized, "formatTelemetry"));
 
-  return formatted;
+  return normalized;
 };

@@ -1,15 +1,16 @@
 import type { TelemetryPanelExtension } from "../types/telemetry";
+import { normalizeTelemetryPanelExtension, type VersionedTelemetryPanelExtension } from "./contracts";
 
-const panelRegistry = new Map<string, TelemetryPanelExtension>();
+const panelRegistry = new Map<string, VersionedTelemetryPanelExtension>();
 
 /**
  * Register a telemetry dashboard extension panel.
  */
-export const registerTelemetryPanel = (extension: TelemetryPanelExtension): void => {
+export const registerTelemetryPanel = (extension: VersionedTelemetryPanelExtension): void => {
   if (!extension.id) {
     throw new Error("Telemetry panel extension must include a non-empty id.");
   }
-  panelRegistry.set(extension.id, extension);
+  panelRegistry.set(extension.id, normalizeTelemetryPanelExtension(extension));
 };
 
 /**

@@ -1,304 +1,10 @@
 import {
-  validateTelemetry,
-  warnTelemetryIssues
-} from "./chunk-HW46UJWW.js";
-
-// src/utils/formatTelemetry.ts
-var TIME_KEYS = ["time", "timestamp", "t", "elapsed", "elapsedTime"];
-var SPEED_KEYS = ["speed", "velocity", "v"];
-var THROTTLE_KEYS = ["throttle", "throttlePosition"];
-var BRAKE_KEYS = ["brake", "brakePressure", "brakePosition"];
-var X_KEYS = ["x", "posX", "positionX", "worldX"];
-var Y_KEYS = ["y", "posY", "positionY", "worldY"];
-var EVENT_TIME_KEYS = ["time", "timestamp", "t", "sessionTime"];
-var EVENT_TYPE_KEYS = ["type", "eventType", "event", "kind"];
-var EVENT_VALUE_KEYS = ["value", "eventValue", "delta", "severity"];
-var EXTRA_CHANNEL_KEY_MAP = {
-  gear: ["gear", "nGear", "n_gear"],
-  ersDeployment: ["ersDeployment", "ers_deployment", "ers", "ersDeploy"],
-  ersHarvest: ["ersHarvest", "ers_harvest", "ersRecovery"],
-  batteryLevel: ["batteryLevel", "battery", "battery_level", "soc"],
-  airTemp: ["airTemp", "air_temperature", "air_temperature_celsius"],
-  trackTemp: ["trackTemp", "track_temperature", "track_temperature_celsius"],
-  humidity: ["humidity", "relative_humidity"],
-  windSpeed: ["windSpeed", "wind_speed"],
-  rainfall: ["rainfall", "rain_intensity", "rain"],
-  pressure: ["pressure", "air_pressure"]
-};
-var toNumber = (value) => {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
-  if (typeof value === "string" && value.trim() !== "") {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) {
-      return parsed;
-    }
-  }
-  return null;
-};
-var pickNumber = (point, keys) => {
-  for (const key of keys) {
-    const value = toNumber(point[key]);
-    if (value !== null) {
-      return value;
-    }
-  }
-  return null;
-};
-var pickArray = (input, keys) => {
-  for (const key of keys) {
-    const candidate = input[key];
-    if (Array.isArray(candidate)) {
-      return candidate;
-    }
-  }
-  return null;
-};
-var getPointsFromNestedArray = (input) => {
-  const containerKeys = ["telemetry", "data", "samples", "points", "records", "lapData"];
-  for (const key of containerKeys) {
-    const candidate = input[key];
-    if (Array.isArray(candidate)) {
-      return candidate.filter((entry) => typeof entry === "object" && entry !== null);
-    }
-  }
-  return null;
-};
-var getPointsFromColumns = (input) => {
-  const time = pickArray(input, TIME_KEYS) ?? [];
-  const speed = pickArray(input, SPEED_KEYS) ?? [];
-  const throttle = pickArray(input, THROTTLE_KEYS) ?? [];
-  const brake = pickArray(input, BRAKE_KEYS) ?? [];
-  const x = pickArray(input, X_KEYS) ?? [];
-  const y = pickArray(input, Y_KEYS) ?? [];
-  const extraArrays = Object.fromEntries(
-    Object.entries(EXTRA_CHANNEL_KEY_MAP).map(([channel, keys]) => [channel, pickArray(input, keys) ?? []])
-  );
-  const length = Math.max(
-    time.length,
-    speed.length,
-    throttle.length,
-    brake.length,
-    x.length,
-    y.length,
-    ...Object.values(extraArrays).map((series) => series.length)
-  );
-  return Array.from({ length }, (_, index) => {
-    const row = {
-      time: time[index] ?? index,
-      speed: speed[index] ?? 0,
-      throttle: throttle[index] ?? 0,
-      brake: brake[index] ?? 0,
-      x: x[index] ?? 0,
-      y: y[index] ?? 0
-    };
-    Object.keys(extraArrays).forEach((channel) => {
-      row[channel] = extraArrays[channel][index];
-    });
-    return row;
-  });
-};
-var formatEvent = (entry) => {
-  if (typeof entry !== "object" || entry === null) {
-    return null;
-  }
-  const point = entry;
-  const type = EVENT_TYPE_KEYS.map((key) => point[key]).find(
-    (value2) => typeof value2 === "string" && value2.trim() !== ""
-  );
-  const time = pickNumber(point, EVENT_TIME_KEYS);
-  if (!type || time === null) {
-    return null;
-  }
-  const rawValue = EVENT_VALUE_KEYS.map((key) => point[key]).find((value2) => value2 !== void 0);
-  const value = typeof rawValue === "number" || typeof rawValue === "string" || typeof rawValue === "boolean" || rawValue === null ? rawValue : void 0;
-  const description = typeof point.description === "string" ? point.description : void 0;
-  const metadata = typeof point.metadata === "object" && point.metadata !== null && !Array.isArray(point.metadata) ? point.metadata : void 0;
-  return {
-    time,
-    type,
-    value,
-    description,
-    metadata
-  };
-};
-var getEvents = (input) => {
-  if (Array.isArray(input)) {
-    return [];
-  }
-  const directEvents = Array.isArray(input.events) ? input.events : [];
-  return directEvents.map(formatEvent).filter((event) => event !== null);
-};
-var formatTelemetry = (data) => {
-  const formatted = {
-    time: [],
-    speed: [],
-    throttle: [],
-    brake: [],
-    x: [],
-    y: []
-  };
-  const extraChannelBuffers = Object.fromEntries(
-    Object.keys(EXTRA_CHANNEL_KEY_MAP).map((channel) => [channel, []])
-  );
-  const hasExtraChannel = Object.fromEntries(
-    Object.keys(EXTRA_CHANNEL_KEY_MAP).map((channel) => [channel, false])
-  );
-  const points = Array.isArray(data) ? data.filter((entry) => typeof entry === "object" && entry !== null) : getPointsFromNestedArray(data) ?? getPointsFromColumns(data);
-  points.forEach((point, index) => {
-    formatted.time.push(pickNumber(point, TIME_KEYS) ?? index);
-    formatted.speed.push(pickNumber(point, SPEED_KEYS) ?? 0);
-    formatted.throttle.push(pickNumber(point, THROTTLE_KEYS) ?? 0);
-    formatted.brake.push(pickNumber(point, BRAKE_KEYS) ?? 0);
-    formatted.x.push(pickNumber(point, X_KEYS) ?? 0);
-    formatted.y.push(pickNumber(point, Y_KEYS) ?? 0);
-    Object.keys(EXTRA_CHANNEL_KEY_MAP).forEach((channel) => {
-      const channelValue = pickNumber(point, EXTRA_CHANNEL_KEY_MAP[channel]);
-      if (channelValue !== null) {
-        hasExtraChannel[channel] = true;
-      }
-      extraChannelBuffers[channel].push(channelValue ?? 0);
-    });
-  });
-  const channels = Object.fromEntries(
-    Object.keys(EXTRA_CHANNEL_KEY_MAP).filter((channel) => hasExtraChannel[channel]).map((channel) => [channel, extraChannelBuffers[channel]])
-  );
-  if (Object.keys(channels).length > 0) {
-    formatted.channels = channels;
-  }
-  const events = getEvents(data);
-  if (events.length > 0) {
-    formatted.events = events;
-  }
-  warnTelemetryIssues(validateTelemetry(formatted, "formatTelemetry"));
-  return formatted;
-};
-
-// src/adapters/diagnostics.ts
-var toDiagnostic = (issue) => ({
-  code: issue.code,
-  severity: issue.severity,
-  message: issue.message,
-  field: issue.channel
-});
-var toAdapterResult = (adapter, telemetry, sourceSamples, options = {}) => {
-  const validation = validateTelemetry(telemetry, `${adapter} adapter`, {
-    mode: options.validationMode
-  });
-  const diagnostics = validation.issues.map(toDiagnostic);
-  const warningCount = diagnostics.filter((entry) => entry.severity === "warning").length;
-  const errorCount = diagnostics.length - warningCount;
-  return {
-    telemetry,
-    validation,
-    diagnostics: {
-      adapter,
-      sourceSamples,
-      parsedSamples: telemetry.time.length,
-      mode: validation.mode,
-      errorCount,
-      warningCount,
-      diagnostics
-    }
-  };
-};
-
-// src/adapters/csv.ts
-var normalizeHeader = (value) => value.trim().toLowerCase();
-var HEADER_KEY_MAP = {
-  time: "time",
-  timestamp: "time",
-  t: "time",
-  speed: "speed",
-  velocity: "speed",
-  throttle: "throttle",
-  brake: "brake",
-  gear: "gear",
-  ngear: "gear",
-  ersdeployment: "ersDeployment",
-  ersharvest: "ersHarvest",
-  batterylevel: "batteryLevel",
-  airtemp: "airTemp",
-  tracktemp: "trackTemp",
-  humidity: "humidity",
-  windspeed: "windSpeed",
-  rainfall: "rainfall",
-  pressure: "pressure",
-  x: "x",
-  y: "y"
-};
-var detectDelimiter = (row) => {
-  if (row.includes("	")) {
-    return "	";
-  }
-  if (row.includes(";")) {
-    return ";";
-  }
-  return ",";
-};
-var splitCsvRow = (row, delimiter) => {
-  const values = [];
-  let current = "";
-  let inQuotes = false;
-  for (let index = 0; index < row.length; index += 1) {
-    const char = row[index];
-    if (char === '"') {
-      if (inQuotes && row[index + 1] === '"') {
-        current += '"';
-        index += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-      continue;
-    }
-    if (char === delimiter && !inQuotes) {
-      values.push(current.trim());
-      current = "";
-      continue;
-    }
-    current += char;
-  }
-  values.push(current.trim());
-  return values;
-};
-var maybeNumber = (value) => {
-  if (value === "") {
-    return value;
-  }
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : value;
-};
-var fromCsvTelemetry = (csv, options = {}) => {
-  const rows = csv.split(/\r?\n/).map((row) => row.trim()).filter((row) => row.length > 0);
-  if (rows.length === 0) {
-    return formatTelemetry([]);
-  }
-  const delimiter = options.delimiter ?? detectDelimiter(rows[0]);
-  const hasHeader = options.hasHeader ?? true;
-  const rawHeaders = hasHeader ? splitCsvRow(rows[0], delimiter) : ["time", "speed", "throttle", "brake", "x", "y"];
-  const headers = rawHeaders.map((header) => HEADER_KEY_MAP[normalizeHeader(header)] ?? normalizeHeader(header));
-  const startIndex = hasHeader ? 1 : 0;
-  const points = [];
-  for (let rowIndex = startIndex; rowIndex < rows.length; rowIndex += 1) {
-    const columns = splitCsvRow(rows[rowIndex], delimiter);
-    const point = {};
-    headers.forEach((header, columnIndex) => {
-      const value = columns[columnIndex] ?? "";
-      point[header] = maybeNumber(value);
-    });
-    points.push(point);
-  }
-  return formatTelemetry(points);
-};
-var fromCsvTelemetryWithDiagnostics = (csv, options = {}) => {
-  const telemetry = fromCsvTelemetry(csv, options);
-  const sourceSamples = csv.split(/\r?\n/).map((row) => row.trim()).filter((row) => row.length > 0).length - (options.hasHeader ?? true ? 1 : 0);
-  return toAdapterResult("csv", telemetry, Math.max(sourceSamples, 0), options);
-};
+  formatTelemetry,
+  toAdapterResult
+} from "./chunk-3TSKDY3A.js";
 
 // src/adapters/shared.ts
-var toNumber2 = (value) => {
+var toNumber = (value) => {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
   }
@@ -333,7 +39,7 @@ var parseClockLikeTime = (value) => {
   return null;
 };
 var toSeconds = (value) => {
-  const direct = toNumber2(value);
+  const direct = toNumber(value);
   if (direct !== null) {
     return direct;
   }
@@ -387,28 +93,28 @@ var parseLapTimeString = (timeStr) => {
 };
 
 // src/adapters/fastf1.ts
-var TIME_KEYS2 = ["SessionTime", "Time", "time", "timestamp"];
-var SPEED_KEYS2 = ["Speed", "speed"];
-var THROTTLE_KEYS2 = ["Throttle", "throttle"];
-var BRAKE_KEYS2 = ["Brake", "brake"];
-var X_KEYS2 = ["X", "x", "PositionX", "posX"];
-var Y_KEYS2 = ["Y", "y", "PositionY", "posY"];
+var TIME_KEYS = ["SessionTime", "Time", "time", "timestamp"];
+var SPEED_KEYS = ["Speed", "speed"];
+var THROTTLE_KEYS = ["Throttle", "throttle"];
+var BRAKE_KEYS = ["Brake", "brake"];
+var X_KEYS = ["X", "x", "PositionX", "posX"];
+var Y_KEYS = ["Y", "y", "PositionY", "posY"];
 var GEAR_KEYS = ["nGear", "NGear", "gear"];
 var ERS_DEPLOYMENT_KEYS = ["ERSDeploy", "ERSDeployment", "ersDeployment"];
 var ERS_HARVEST_KEYS = ["ERSHarvest", "ersHarvest"];
 var BATTERY_LEVEL_KEYS = ["BatteryLevel", "batteryLevel", "soc"];
 var fromPoints = (points) => {
   const normalized = points.map((point, index) => ({
-    time: toSeconds(pickField(point, TIME_KEYS2)) ?? index,
-    speed: toNumber2(pickField(point, SPEED_KEYS2)) ?? 0,
-    throttle: toNumber2(pickField(point, THROTTLE_KEYS2)) ?? 0,
-    brake: toNumber2(pickField(point, BRAKE_KEYS2)) ?? 0,
-    x: toNumber2(pickField(point, X_KEYS2)) ?? 0,
-    y: toNumber2(pickField(point, Y_KEYS2)) ?? 0,
-    gear: toNumber2(pickField(point, GEAR_KEYS)) ?? void 0,
-    ersDeployment: toNumber2(pickField(point, ERS_DEPLOYMENT_KEYS)) ?? void 0,
-    ersHarvest: toNumber2(pickField(point, ERS_HARVEST_KEYS)) ?? void 0,
-    batteryLevel: toNumber2(pickField(point, BATTERY_LEVEL_KEYS)) ?? void 0
+    time: toSeconds(pickField(point, TIME_KEYS)) ?? index,
+    speed: toNumber(pickField(point, SPEED_KEYS)) ?? 0,
+    throttle: toNumber(pickField(point, THROTTLE_KEYS)) ?? 0,
+    brake: toNumber(pickField(point, BRAKE_KEYS)) ?? 0,
+    x: toNumber(pickField(point, X_KEYS)) ?? 0,
+    y: toNumber(pickField(point, Y_KEYS)) ?? 0,
+    gear: toNumber(pickField(point, GEAR_KEYS)) ?? void 0,
+    ersDeployment: toNumber(pickField(point, ERS_DEPLOYMENT_KEYS)) ?? void 0,
+    ersHarvest: toNumber(pickField(point, ERS_HARVEST_KEYS)) ?? void 0,
+    batteryLevel: toNumber(pickField(point, BATTERY_LEVEL_KEYS)) ?? void 0
   }));
   return formatTelemetry(normalized);
 };
@@ -442,12 +148,12 @@ var fromFastF1TelemetryWithDiagnostics = (input, options = {}) => {
 };
 
 // src/adapters/openf1.ts
-var TIME_KEYS3 = ["session_time", "date", "time", "timestamp", "time_seconds"];
-var SPEED_KEYS3 = ["speed", "speed_kmh"];
-var THROTTLE_KEYS3 = ["throttle", "throttle_percentage"];
-var BRAKE_KEYS3 = ["brake", "brake_percentage"];
-var X_KEYS3 = ["x", "position_x", "world_x"];
-var Y_KEYS3 = ["y", "position_y", "world_y"];
+var TIME_KEYS2 = ["session_time", "date", "time", "timestamp", "time_seconds"];
+var SPEED_KEYS2 = ["speed", "speed_kmh"];
+var THROTTLE_KEYS2 = ["throttle", "throttle_percentage"];
+var BRAKE_KEYS2 = ["brake", "brake_percentage"];
+var X_KEYS2 = ["x", "position_x", "world_x"];
+var Y_KEYS2 = ["y", "position_y", "world_y"];
 var GEAR_KEYS2 = ["n_gear", "nGear", "gear"];
 var AIR_TEMP_KEYS = ["air_temperature", "airTemp"];
 var TRACK_TEMP_KEYS = ["track_temperature", "trackTemp"];
@@ -457,26 +163,26 @@ var RAINFALL_KEYS = ["rainfall", "rain_intensity"];
 var PRESSURE_KEYS = ["air_pressure", "pressure"];
 var fromOpenF1Telemetry = (input) => {
   const points = input.map((point, index) => ({
-    time: toSeconds(pickField(point, TIME_KEYS3)) ?? index,
-    speed: toNumber2(pickField(point, SPEED_KEYS3)) ?? 0,
-    throttle: toNumber2(pickField(point, THROTTLE_KEYS3)) ?? 0,
-    brake: toNumber2(pickField(point, BRAKE_KEYS3)) ?? 0,
-    x: toNumber2(pickField(point, X_KEYS3)) ?? 0,
-    y: toNumber2(pickField(point, Y_KEYS3)) ?? 0,
-    gear: toNumber2(pickField(point, GEAR_KEYS2)) ?? void 0,
-    airTemp: toNumber2(pickField(point, AIR_TEMP_KEYS)) ?? void 0,
-    trackTemp: toNumber2(pickField(point, TRACK_TEMP_KEYS)) ?? void 0,
-    humidity: toNumber2(pickField(point, HUMIDITY_KEYS)) ?? void 0,
-    windSpeed: toNumber2(pickField(point, WIND_SPEED_KEYS)) ?? void 0,
-    rainfall: toNumber2(pickField(point, RAINFALL_KEYS)) ?? void 0,
-    pressure: toNumber2(pickField(point, PRESSURE_KEYS)) ?? void 0
+    time: toSeconds(pickField(point, TIME_KEYS2)) ?? index,
+    speed: toNumber(pickField(point, SPEED_KEYS2)) ?? 0,
+    throttle: toNumber(pickField(point, THROTTLE_KEYS2)) ?? 0,
+    brake: toNumber(pickField(point, BRAKE_KEYS2)) ?? 0,
+    x: toNumber(pickField(point, X_KEYS2)) ?? 0,
+    y: toNumber(pickField(point, Y_KEYS2)) ?? 0,
+    gear: toNumber(pickField(point, GEAR_KEYS2)) ?? void 0,
+    airTemp: toNumber(pickField(point, AIR_TEMP_KEYS)) ?? void 0,
+    trackTemp: toNumber(pickField(point, TRACK_TEMP_KEYS)) ?? void 0,
+    humidity: toNumber(pickField(point, HUMIDITY_KEYS)) ?? void 0,
+    windSpeed: toNumber(pickField(point, WIND_SPEED_KEYS)) ?? void 0,
+    rainfall: toNumber(pickField(point, RAINFALL_KEYS)) ?? void 0,
+    pressure: toNumber(pickField(point, PRESSURE_KEYS)) ?? void 0
   }));
   return formatTelemetry(points);
 };
 var fromOpenF1TelemetryWithDiagnostics = (input, options = {}) => toAdapterResult("openf1", fromOpenF1Telemetry(input), input.length, options);
 
 // src/adapters/ergast.ts
-var asRequiredNumber = (value) => toNumber2(value) ?? 0;
+var asRequiredNumber = (value) => toNumber(value) ?? 0;
 var fromErgastApi = (data) => {
   const results = (data.Results ?? []).map((result) => {
     const fastestLapTime = result.FastestLap?.Time?.time ? parseLapTimeString(result.FastestLap.Time.time) ?? void 0 : void 0;
@@ -489,11 +195,11 @@ var fromErgastApi = (data) => {
       points: asRequiredNumber(result.points),
       lapsCompleted: asRequiredNumber(result.laps),
       status: result.status,
-      totalTimeMs: toNumber2(result.Time?.millis) ?? void 0,
+      totalTimeMs: toNumber(result.Time?.millis) ?? void 0,
       fastestLapTime,
-      fastestLapNumber: toNumber2(result.FastestLap?.lap) ?? void 0,
-      fastestLapRank: toNumber2(result.FastestLap?.rank) ?? void 0,
-      averageSpeedKmh: toNumber2(result.FastestLap?.AverageSpeed?.speed) ?? void 0
+      fastestLapNumber: toNumber(result.FastestLap?.lap) ?? void 0,
+      fastestLapRank: toNumber(result.FastestLap?.rank) ?? void 0,
+      averageSpeedKmh: toNumber(result.FastestLap?.AverageSpeed?.speed) ?? void 0
     };
   });
   const driverIdToCode = /* @__PURE__ */ new Map();
@@ -547,7 +253,7 @@ var parseGap = (gap) => {
   if (!normalized || /lap/i.test(normalized)) {
     return null;
   }
-  const parsed = toNumber2(normalized.replace(/^\+/, ""));
+  const parsed = toNumber(normalized.replace(/^\+/, ""));
   return parsed ?? null;
 };
 var fromMultiViewerCarData = (data) => {
@@ -562,12 +268,12 @@ var fromMultiViewerCarData = (data) => {
     const brakeValue = typeof entry.channels.brake === "boolean" ? entry.channels.brake ? 100 : 0 : entry.channels.brake;
     return {
       time: Number.isFinite(start) ? (Date.parse(entry.timestamp) - start) / 1e3 : index,
-      speed: toNumber2(entry.channels.speed) ?? 0,
-      throttle: toNumber2(entry.channels.throttle) ?? 0,
-      brake: toNumber2(brakeValue) ?? 0,
-      x: toNumber2(entry.position?.x) ?? 0,
-      y: toNumber2(entry.position?.y) ?? 0,
-      gear: toNumber2(entry.channels.gear) ?? void 0
+      speed: toNumber(entry.channels.speed) ?? 0,
+      throttle: toNumber(entry.channels.throttle) ?? 0,
+      brake: toNumber(brakeValue) ?? 0,
+      x: toNumber(entry.position?.x) ?? 0,
+      y: toNumber(entry.position?.y) ?? 0,
+      gear: toNumber(entry.channels.gear) ?? void 0
     };
   });
   return formatTelemetry(points);
@@ -586,7 +292,7 @@ var fromMultiViewerTiming = (data) => data.map((entry) => ({
     entry.sector3 ? parseLapTimeString(entry.sector3) : null
   ],
   tyreCompound: entry.tyreCompound ?? null,
-  tyreAge: toNumber2(entry.tyreAge) ?? null
+  tyreAge: toNumber(entry.tyreAge) ?? null
 }));
 
 // src/adapters/json.ts
@@ -810,9 +516,6 @@ var fetchOpenF1Drivers = async (sessionKey, options = {}) => {
 };
 
 export {
-  formatTelemetry,
-  fromCsvTelemetry,
-  fromCsvTelemetryWithDiagnostics,
   fromFastF1Telemetry,
   fromFastF1TelemetryWithDiagnostics,
   fromOpenF1Telemetry,
@@ -830,4 +533,4 @@ export {
   fetchOpenF1Sessions,
   fetchOpenF1Drivers
 };
-//# sourceMappingURL=chunk-SPFWGXFA.js.map
+//# sourceMappingURL=chunk-VK2JTYWJ.js.map

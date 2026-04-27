@@ -135,6 +135,31 @@ var warnTelemetryIssues = (validation) => {
   warnableIssues.forEach((issue) => warn(issue.message));
 };
 
+// src/utils/timeSemantics.ts
+var round = (value) => Number(value.toFixed(6));
+var normalizeTelemetryTime = (telemetry, options = {}) => {
+  const timeReference = options.timeReference ?? telemetry.timeReference ?? "session";
+  if (telemetry.time.length === 0) {
+    return {
+      ...telemetry,
+      timeReference
+    };
+  }
+  const baseline = telemetry.time[0];
+  const normalizedTime = telemetry.time.map((value) => round(value - baseline));
+  const normalizedEvents = telemetry.events?.map((event) => ({
+    ...event,
+    time: round(event.time - baseline),
+    timeReference
+  }));
+  return {
+    ...telemetry,
+    time: normalizedTime,
+    events: normalizedEvents,
+    timeReference
+  };
+};
+
 // src/utils/formatTelemetry.ts
 var TIME_KEYS = ["time", "timestamp", "t", "elapsed", "elapsedTime"];
 var SPEED_KEYS = ["speed", "velocity", "v"];
@@ -269,7 +294,8 @@ var formatTelemetry = (data) => {
     throttle: [],
     brake: [],
     x: [],
-    y: []
+    y: [],
+    timeReference: "session"
   };
   const extraChannelBuffers = Object.fromEntries(
     Object.keys(EXTRA_CHANNEL_KEY_MAP).map((channel) => [channel, []])
@@ -303,8 +329,9 @@ var formatTelemetry = (data) => {
   if (events.length > 0) {
     formatted.events = events;
   }
-  warnTelemetryIssues(validateTelemetry(formatted, "formatTelemetry"));
-  return formatted;
+  const normalized = normalizeTelemetryTime(formatted);
+  warnTelemetryIssues(validateTelemetry(normalized, "formatTelemetry"));
+  return normalized;
 };
 
 // src/adapters/shared.ts

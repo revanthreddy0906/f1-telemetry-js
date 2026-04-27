@@ -6,6 +6,7 @@ export { formatTelemetry } from "./utils/formatTelemetry";
 export { validateTelemetry, sanitizeNumericArray, alignSeriesLengths } from "./utils/validation";
 export { processSeriesData, findNearestIndex } from "./utils/processing";
 export { processSeriesDataInWorker } from "./utils/workerProcessing";
+export { normalizeTelemetryTime } from "./utils/timeSemantics";
 export {
   normalizeDistance,
   computeLapTimes,
@@ -26,6 +27,7 @@ export type {
   ThemeMode,
   DownsampleStrategy,
   TelemetryChartType,
+  TelemetryTimeReference,
   LapComparisonMode,
   TelemetryAnnotationType,
   TelemetrySeverity,
@@ -52,6 +54,13 @@ export type {
   JsonExportFormat,
   CsvExportOptions,
   TelemetryEvent,
+  TelemetrySharedChannelApi,
+  TelemetryPanelContextMenuAction,
+  TelemetryPanelRenderContext,
+  TelemetryPanelExtension,
+  TelemetryDashboardLayoutItem,
+  TelemetryDashboardLayout,
+  TelemetryDashboardProps,
   FormattedTelemetry,
   RawTelemetryPoint,
   RawTelemetryInput,

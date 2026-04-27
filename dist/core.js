@@ -30,20 +30,15 @@ import {
   interpolateTelemetry,
   mergeTelemetry,
   normalizeDistance
-} from "./chunk-M3GRIU7N.js";
+} from "./chunk-V7U3ZKIX.js";
 import {
-  findNearestIndex,
-  processSeriesData,
   processSeriesDataInWorker
-} from "./chunk-4CUWBBQN.js";
+} from "./chunk-BH4J3NKQ.js";
 import {
   fetchOpenF1Drivers,
   fetchOpenF1Sessions,
   fetchOpenF1Telemetry,
   fetchOpenF1TelemetryWithDiagnostics,
-  formatTelemetry,
-  fromCsvTelemetry,
-  fromCsvTelemetryWithDiagnostics,
   fromErgastApi,
   fromFastF1Telemetry,
   fromFastF1TelemetryWithDiagnostics,
@@ -56,7 +51,17 @@ import {
   fromOpenF1TelemetryWithDiagnostics,
   fromParquet,
   fromParquetWithDiagnostics
-} from "./chunk-SPFWGXFA.js";
+} from "./chunk-VK2JTYWJ.js";
+import {
+  findNearestIndex,
+  processSeriesData
+} from "./chunk-CBFO23W6.js";
+import {
+  formatTelemetry,
+  fromCsvTelemetry,
+  fromCsvTelemetryWithDiagnostics,
+  normalizeTelemetryTime
+} from "./chunk-3TSKDY3A.js";
 import {
   alignSeriesLengths,
   sanitizeNumericArray,
@@ -115,6 +120,7 @@ export {
   interpolateTelemetry,
   mergeTelemetry,
   normalizeDistance,
+  normalizeTelemetryTime,
   processSeriesData,
   processSeriesDataInWorker,
   sanitizeNumericArray,

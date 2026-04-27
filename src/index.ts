@@ -42,6 +42,7 @@ export { validateTelemetry } from "./utils/validation";
  */
 export { processSeriesData, findNearestIndex } from "./utils/processing";
 export { processSeriesDataInWorker } from "./utils/workerProcessing";
+export { normalizeTelemetryTime } from "./utils/timeSemantics";
 
 export {
   normalizeDistance,
@@ -86,11 +87,19 @@ export { clearTelemetryPanels } from "./extensions/registry";
  * Return all registered dashboard extension panels in render order.
  */
 export { getTelemetryPanels } from "./extensions/registry";
+export {
+  TELEMETRY_EXTENSION_API_VERSION,
+  assertTelemetryExtensionCompatible,
+  normalizeTelemetryPanelExtension
+} from "./extensions/contracts";
 
 // ── Pre-built extension panels ──
 export { telemetryStatsPanel } from "./extensions/panels/statsPanel";
 export { gearDistributionPanel } from "./extensions/panels/gearDistributionPanel";
 export { lapSummaryPanel } from "./extensions/panels/lapSummaryPanel";
+export { stintDegradationPanel } from "./extensions/panels/stintDegradationPanel";
+export { sectorPaceEvolutionPanel } from "./extensions/panels/sectorPaceEvolutionPanel";
+export { overtakeTimelinePanel } from "./extensions/panels/overtakeTimelinePanel";
 
 export * from "./adapters";
 export * from "./constants";
@@ -99,6 +108,7 @@ export type {
   ThemeMode,
   DownsampleStrategy,
   TelemetryChartType,
+  TelemetryTimeReference,
   LapComparisonMode,
   TelemetryAnnotationType,
   TelemetrySeverity,
@@ -155,8 +165,12 @@ export type {
   JsonExportFormat,
   CsvExportOptions,
   TelemetryEvent,
+  TelemetrySharedChannelApi,
+  TelemetryPanelContextMenuAction,
   TelemetryPanelRenderContext,
   TelemetryPanelExtension,
+  TelemetryDashboardLayoutItem,
+  TelemetryDashboardLayout,
   TelemetryDashboardProps,
   FormattedTelemetry,
   RawTelemetryPoint,
@@ -171,5 +185,6 @@ export type {
   TelemetryAdapterDiagnostics,
   TelemetryAdapterResult
 } from "./types/telemetry";
+export type { VersionedTelemetryPanelExtension } from "./extensions/contracts";
 
 export type { TelemetryPlaygroundProps } from "./components/TelemetryPlayground";

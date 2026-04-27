@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  TELEMETRY_EXTENSION_API_VERSION,
+  assertTelemetryExtensionCompatible,
   clearTelemetryPanels,
   getTelemetryPanels,
+  normalizeTelemetryPanelExtension,
   registerTelemetryPanel,
   unregisterTelemetryPanel
 } from "../src";
@@ -27,5 +30,21 @@ describe("telemetry extension registry", () => {
 
     unregisterTelemetryPanel("a");
     expect(getTelemetryPanels().map((panel) => panel.id)).toEqual(["b"]);
+  });
+
+  it("normalizes extension contracts to current API version", () => {
+    const normalized = normalizeTelemetryPanelExtension({
+      id: "versioned",
+      render: () => null
+    });
+    expect(normalized.apiVersion).toBe(TELEMETRY_EXTENSION_API_VERSION);
+
+    expect(() =>
+      assertTelemetryExtensionCompatible({
+        id: "legacy",
+        apiVersion: "1.5.0",
+        render: () => null
+      })
+    ).toThrow(/incompatible/i);
   });
 });

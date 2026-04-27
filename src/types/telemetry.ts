@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 export type ThemeMode = "light" | "dark" | "high-contrast";
 export type DownsampleStrategy = "every-nth" | "min-max" | "adaptive";
 export type TelemetryChartType = "line" | "track" | "scatter" | "bar";
+export type TelemetryTimeReference = "session" | "lap";
 export type LapComparisonMode = "overlay" | "delta";
 export type TelemetryAnnotationType = "corner" | "drs" | "incident";
 export type TelemetrySeverity = "low" | "medium" | "high";
@@ -355,6 +356,7 @@ export interface CsvExportOptions {
 
 export interface TelemetryEvent {
   time: number;
+  timeReference?: TelemetryTimeReference;
   type: string;
   value?: number | string | boolean | null;
   description?: string;
@@ -370,12 +372,14 @@ export interface FormattedTelemetry {
   y: number[];
   channels?: Partial<Record<TelemetryExtraChannel, number[]>>;
   events?: TelemetryEvent[];
+  timeReference?: TelemetryTimeReference;
 }
 
 export type RawTelemetryPoint = Record<string, unknown>;
 export type RawTelemetryInput = RawTelemetryPoint[] | Record<string, unknown>;
 
 export interface TelemetryPanelRenderContext {
+  panelId: string;
   telemetry: FormattedTelemetry;
   comparison?: DriverLapTelemetry;
   lapMode: LapComparisonMode;
@@ -386,12 +390,43 @@ export interface TelemetryPanelRenderContext {
   processing?: DataProcessingOptions;
   cursorTime: number | null;
   setCursorTime: (value: number | null) => void;
+  shared: TelemetrySharedChannelApi;
+}
+
+export interface TelemetrySharedChannelApi {
+  publish: (channel: string, payload: unknown) => void;
+  read: (channel: string) => unknown;
+  subscribe: (channel: string, listener: (payload: unknown) => void) => () => void;
+}
+
+export interface TelemetryPanelContextMenuAction {
+  id: string;
+  label: string;
+  onSelect: (context: TelemetryPanelRenderContext) => void;
+  isVisible?: (context: TelemetryPanelRenderContext) => boolean;
+  isDisabled?: (context: TelemetryPanelRenderContext) => boolean;
 }
 
 export interface TelemetryPanelExtension {
   id: string;
+  title?: string;
   order?: number;
+  channels?: string[];
+  contextMenuActions?: TelemetryPanelContextMenuAction[];
+  onMount?: (context: TelemetryPanelRenderContext) => void;
+  onUnmount?: (context: TelemetryPanelRenderContext) => void;
   render: (context: TelemetryPanelRenderContext) => ReactNode;
+}
+
+export interface TelemetryDashboardLayoutItem {
+  id: string;
+  order: number;
+  width: 1 | 2 | 3;
+  hidden?: boolean;
+}
+
+export interface TelemetryDashboardLayout {
+  items: TelemetryDashboardLayoutItem[];
 }
 
 export interface TelemetryDashboardProps {
@@ -411,6 +446,11 @@ export interface TelemetryDashboardProps {
   minPanelWidth?: number;
   includeDefaultPanels?: boolean;
   extensions?: TelemetryPanelExtension[];
+  enableLayoutEditor?: boolean;
+  persistLayout?: boolean;
+  layoutStorageKey?: string;
+  defaultLayout?: TelemetryDashboardLayout;
+  onLayoutChange?: (layout: TelemetryDashboardLayout) => void;
 }
 
 export interface TelemetryValidationIssue {

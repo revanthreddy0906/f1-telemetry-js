@@ -8,6 +8,7 @@ describe("TelemetryPlayground", () => {
     render(<TelemetryPlayground />);
     expect(screen.getByLabelText("Telemetry CSV input")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Parse" })).toBeInTheDocument();
+    expect(screen.getByText("Import Wizard")).toBeInTheDocument();
   });
 
   it("load example fills textarea with telemetry csv", () => {
@@ -44,5 +45,29 @@ describe("TelemetryPlayground", () => {
     fireEvent.click(screen.getByRole("button", { name: "Parse" }));
     expect(screen.getByRole("alert")).toBeInTheDocument();
     expect(screen.getByText("Unable to parse CSV:")).toBeInTheDocument();
+  });
+
+  it("wizard field mapping parses non-standard CSV headers", () => {
+    render(
+      <TelemetryPlayground
+        defaultCsv={[
+          "ts,vel,th,br,posx,posy",
+          "0,120,20,0,10,15",
+          "1,150,55,0,14,19",
+          "2,180,80,4,19,22"
+        ].join("\n")}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText("Map field time"), { target: { value: "ts" } });
+    fireEvent.change(screen.getByLabelText("Map field speed"), { target: { value: "vel" } });
+    fireEvent.change(screen.getByLabelText("Map field throttle"), { target: { value: "th" } });
+    fireEvent.change(screen.getByLabelText("Map field brake"), { target: { value: "br" } });
+    fireEvent.change(screen.getByLabelText("Map field x"), { target: { value: "posx" } });
+    fireEvent.change(screen.getByLabelText("Map field y"), { target: { value: "posy" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Parse" }));
+    expect(screen.getByText("Speed vs Time")).toBeInTheDocument();
+    expect(screen.getByText("Track Map")).toBeInTheDocument();
   });
 });

@@ -40,6 +40,30 @@ All notable changes to this project will be documented in this file.
   - worker-capable processing API: `processSeriesDataInWorker`
   - expanded benchmark matrix for small/medium/large telemetry sizes
   - benchmark trend files: `benchmarks/perf-baseline.json` + generated `perf-latest.json`
+- UX/extensibility upgrades:
+  - first-party dashboard layout editor (reorder/resizing/hide-show) with localStorage persistence
+  - richer extension SDK contracts:
+    - panel lifecycle hooks (`onMount` / `onUnmount`)
+    - context menu actions (`contextMenuActions`)
+    - shared channel API (`publish`, `read`, `subscribe`)
+  - new built-in analytics panels:
+    - `stintDegradationPanel`
+    - `sectorPaceEvolutionPanel`
+    - `overtakeTimelinePanel`
+  - `TelemetryPlayground` import wizard with CSV field mapping and transformation preview
+- Ecosystem wrapper packages and starters:
+  - `packages/vue` (`@f1-telemetry-js/vue`)
+  - `packages/svelte` (`@f1-telemetry-js/svelte`)
+  - `packages/react-native-core` (`@f1-telemetry-js/react-native-core`)
+  - new starter templates: Vue, Svelte, React Native
+  - wrapper parity tests
+- v2 namespace cleanup and migration support:
+  - new stable exports:
+    - `f1-telemetry-js/react`
+    - `f1-telemetry-js/extensions`
+  - extension API contracts and compatibility helpers
+  - codemod script for v1→v2 import migration (`codemod:v2-imports`)
+  - normalized telemetry/event time semantics (`normalizeTelemetryTime`, `timeReference`)
 - Ten new visualization components:
   - `GearChart`
   - `EnergyChart`
@@ -110,6 +134,8 @@ All notable changes to this project will be documented in this file.
 - `useTelemetry` now supports configurable `validationMode`.
 - Processing now normalizes out-of-order and duplicate timestamps before windowing/downsampling.
 - `processSeriesData` now supports adaptive decimation (`downsampleStrategy: "adaptive"`) with viewport-aware tuning.
+- `TelemetryDashboard` supports configurable persisted layouts (`layoutStorageKey`, `defaultLayout`, `onLayoutChange`).
+- `formatTelemetry` now normalizes times to a consistent relative timeline and sets `timeReference`.
 - Accessibility improvements across chart cards (focus ring + ARIA support).
 - Theme system extended with `high-contrast` mode and tokenized focus styling.
 - SSR-safe lazy chart rendering expanded (including radar support).

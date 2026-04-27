@@ -1,0 +1,30 @@
+{
+  "name": "@f1-telemetry-js/vue",
+  "version": "2.0.0",
+  "description": "Vue helpers and wrappers for f1-telemetry-js core telemetry utilities.",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean",
+    "lint": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "vue": ">=3.3.0",
+    "f1-telemetry-js": "^2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "f1-telemetry-js": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "tsup": "^8.2.4",
+    "typescript": "^5.5.4"
+  }
+}

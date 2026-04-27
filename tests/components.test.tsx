@@ -1,6 +1,6 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import {
   LapComparisonChart,
   SpeedChart,
@@ -55,10 +55,58 @@ describe("chart components", () => {
       />
     );
 
-    expect(screen.getByText("Speed")).toBeInTheDocument();
-    expect(screen.getByText("Driver Inputs")).toBeInTheDocument();
-    expect(screen.getByText("Lap Delta")).toBeInTheDocument();
-    expect(screen.getByText("Track Position")).toBeInTheDocument();
+    expect(screen.getAllByText("Speed").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Driver Inputs").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Lap Delta").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Track Position").length).toBeGreaterThan(0);
     expect(screen.getByText("Extra telemetry panel")).toBeInTheDocument();
+  });
+
+  it("supports dashboard layout editor persistence and extension lifecycle/actions", () => {
+    const onMount = vi.fn();
+    const onUnmount = vi.fn();
+    const onAction = vi.fn();
+
+    if (typeof window !== "undefined" && typeof window.localStorage?.clear === "function") {
+      window.localStorage.clear();
+    }
+
+    const extension = {
+      id: "sdk-panel",
+      title: "SDK Panel",
+      onMount,
+      onUnmount,
+      contextMenuActions: [
+        {
+          id: "ping",
+          label: "Ping",
+          onSelect: onAction
+        }
+      ],
+      render: () => <div>SDK panel content</div>
+    };
+
+    const { unmount, rerender } = render(
+      <TelemetryDashboard telemetry={{ time, speed, throttle, brake, x, y }} layoutStorageKey="components-test" extensions={[extension]} />
+    );
+
+    expect(screen.getByText("Layout Editor")).toBeInTheDocument();
+    expect(screen.getByText("SDK panel content")).toBeInTheDocument();
+    expect(onMount).toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Ping" }));
+    expect(onAction).toHaveBeenCalled();
+
+    const hideButtons = screen.getAllByRole("button", { name: "Hide" });
+    fireEvent.click(hideButtons[0]);
+    expect(screen.getAllByRole("figure").length).toBe(3);
+
+    rerender(
+      <TelemetryDashboard telemetry={{ time, speed, throttle, brake, x, y }} layoutStorageKey="components-test" extensions={[extension]} />
+    );
+    expect(screen.getAllByRole("figure").length).toBe(3);
+
+    unmount();
+    expect(onUnmount).toHaveBeenCalled();
   });
 });

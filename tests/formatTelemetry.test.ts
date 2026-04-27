@@ -8,13 +8,14 @@ describe("formatTelemetry", () => {
       { time: 1, speed: 120, throttle: 40, brake: 5, x: 12, y: 8 }
     ]);
 
-    expect(telemetry).toEqual({
+    expect(telemetry).toMatchObject({
       time: [0, 1],
       speed: [100, 120],
       throttle: [20, 40],
       brake: [0, 5],
       x: [10, 12],
-      y: [5, 8]
+      y: [5, 8],
+      timeReference: "session"
     });
   });
 

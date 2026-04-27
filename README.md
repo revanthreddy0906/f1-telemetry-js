@@ -48,6 +48,7 @@ export function App() {
 - `PitStopTimeline`
 - `WeatherWidget`
 - `TelemetryPlayground`
+- `TelemetryDashboard` layout editor (reorder, resize, hide/show, persisted)
 
 ## Hooks
 
@@ -95,6 +96,8 @@ For finer-grained imports (smaller bundles in non-React apps):
 ```ts
 import { processSeriesDataInWorker } from "f1-telemetry-js/performance";
 import { fromOpenF1Telemetry } from "f1-telemetry-js/adapters";
+import { SpeedChart } from "f1-telemetry-js/react";
+import { registerTelemetryPanel } from "f1-telemetry-js/extensions";
 ```
 
 ## Utility APIs
@@ -139,6 +142,7 @@ const strictValidation = validateTelemetry(adapterResult.telemetry, "lap-check",
 - Validation modes: `strict` (errors on mismatches) and `lenient` (warnings for recoverable shape issues)
 - Adaptive downsampling support via `downsampleStrategy: "adaptive"` and `processing.adaptive`
 - Optional worker processing API: `processSeriesDataInWorker(...)`
+- `TelemetryPlayground` import wizard for CSV field mapping and transform preview
 
 ## Plugin Extension API
 
@@ -153,6 +157,32 @@ Built-in extension panels:
 - `telemetryStatsPanel`
 - `gearDistributionPanel`
 - `lapSummaryPanel`
+- `stintDegradationPanel`
+- `sectorPaceEvolutionPanel`
+- `overtakeTimelinePanel`
+
+Panels can also include:
+
+- lifecycle hooks: `onMount` / `onUnmount`
+- panel context menu actions: `contextMenuActions`
+- shared state channels via `context.shared.publish/read/subscribe`
+
+## v2 Namespace Migration
+
+Recommended import layout in v2:
+
+- React UI + hooks: `f1-telemetry-js/react`
+- Data/processing utilities: `f1-telemetry-js/core`
+- Adapter-only imports: `f1-telemetry-js/adapters`
+- Extension SDK + panels: `f1-telemetry-js/extensions`
+
+To automate most import updates:
+
+```bash
+npm run codemod:v2-imports -- ./src
+```
+
+v2 also standardizes telemetry/event time semantics through `normalizeTelemetryTime(...)` with explicit `timeReference`.
 
 ## React Native
 
@@ -165,6 +195,12 @@ import { fromOpenF1Telemetry, TEAM_COLORS, computeTimeDelta } from "f1-telemetry
 ```
 
 Then render visuals with a React Native charting library (`victory-native`, `react-native-chart-kit`, or `react-native-skia`).
+
+Official wrappers and ecosystem packages:
+
+- `@f1-telemetry-js/vue`
+- `@f1-telemetry-js/svelte`
+- `@f1-telemetry-js/react-native-core`
 
 ## Vue.js
 

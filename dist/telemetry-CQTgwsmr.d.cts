@@ -3,6 +3,7 @@ import { ReactNode } from 'react';
 type ThemeMode = "light" | "dark" | "high-contrast";
 type DownsampleStrategy = "every-nth" | "min-max" | "adaptive";
 type TelemetryChartType = "line" | "track" | "scatter" | "bar";
+type TelemetryTimeReference = "session" | "lap";
 type LapComparisonMode = "overlay" | "delta";
 type TelemetryAnnotationType = "corner" | "drs" | "incident";
 type TelemetrySeverity = "low" | "medium" | "high";
@@ -295,6 +296,7 @@ interface CsvExportOptions {
 }
 interface TelemetryEvent {
     time: number;
+    timeReference?: TelemetryTimeReference;
     type: string;
     value?: number | string | boolean | null;
     description?: string;
@@ -309,10 +311,12 @@ interface FormattedTelemetry {
     y: number[];
     channels?: Partial<Record<TelemetryExtraChannel, number[]>>;
     events?: TelemetryEvent[];
+    timeReference?: TelemetryTimeReference;
 }
 type RawTelemetryPoint = Record<string, unknown>;
 type RawTelemetryInput = RawTelemetryPoint[] | Record<string, unknown>;
 interface TelemetryPanelRenderContext {
+    panelId: string;
     telemetry: FormattedTelemetry;
     comparison?: DriverLapTelemetry;
     lapMode: LapComparisonMode;
@@ -323,11 +327,38 @@ interface TelemetryPanelRenderContext {
     processing?: DataProcessingOptions;
     cursorTime: number | null;
     setCursorTime: (value: number | null) => void;
+    shared: TelemetrySharedChannelApi;
+}
+interface TelemetrySharedChannelApi {
+    publish: (channel: string, payload: unknown) => void;
+    read: (channel: string) => unknown;
+    subscribe: (channel: string, listener: (payload: unknown) => void) => () => void;
+}
+interface TelemetryPanelContextMenuAction {
+    id: string;
+    label: string;
+    onSelect: (context: TelemetryPanelRenderContext) => void;
+    isVisible?: (context: TelemetryPanelRenderContext) => boolean;
+    isDisabled?: (context: TelemetryPanelRenderContext) => boolean;
 }
 interface TelemetryPanelExtension {
     id: string;
+    title?: string;
     order?: number;
+    channels?: string[];
+    contextMenuActions?: TelemetryPanelContextMenuAction[];
+    onMount?: (context: TelemetryPanelRenderContext) => void;
+    onUnmount?: (context: TelemetryPanelRenderContext) => void;
     render: (context: TelemetryPanelRenderContext) => ReactNode;
+}
+interface TelemetryDashboardLayoutItem {
+    id: string;
+    order: number;
+    width: 1 | 2 | 3;
+    hidden?: boolean;
+}
+interface TelemetryDashboardLayout {
+    items: TelemetryDashboardLayoutItem[];
 }
 interface TelemetryDashboardProps {
     telemetry: FormattedTelemetry;
@@ -346,6 +377,11 @@ interface TelemetryDashboardProps {
     minPanelWidth?: number;
     includeDefaultPanels?: boolean;
     extensions?: TelemetryPanelExtension[];
+    enableLayoutEditor?: boolean;
+    persistLayout?: boolean;
+    layoutStorageKey?: string;
+    defaultLayout?: TelemetryDashboardLayout;
+    onLayoutChange?: (layout: TelemetryDashboardLayout) => void;
 }
 interface TelemetryValidationIssue {
     code: "INVALID_SERIES" | "INVALID_VALUE" | "LENGTH_MISMATCH" | "EMPTY_SERIES" | "SPARSE_SERIES";
@@ -399,4 +435,4 @@ interface TelemetryAdapterResult {
     diagnostics: TelemetryAdapterDiagnostics;
 }
 
-export type { SectorTime as $, AdapterName as A, DriverStrategy as B, ChartContainerProps as C, DataProcessingOptions as D, EnergyChartProps as E, FormattedTelemetry as F, GearChartProps as G, GapDataPoint as H, IssueSeverity as I, JsonExportFormat as J, LapComparisonMode as K, LapComparisonChartProps as L, MiniSectorsProps as M, LapSectors as N, LapTime as O, PositionChartProps as P, OvertakeEvent as Q, RadarChartProps as R, SpeedChartProps as S, ThrottleBrakeChartProps as T, PitStop as U, ValidationMode as V, WeatherWidgetProps as W, RawTelemetryInput as X, RawTelemetryPoint as Y, SectorComparison as Z, SectorSplit as _, TrackMapProps as a, TelemetryAdapterDiagnostic as a0, TelemetryAdapterDiagnostics as a1, TelemetryAdapterResult as a2, TelemetryAnnotationType as a3, TelemetryChartType as a4, TelemetryEvent as a5, TelemetryExtraChannel as a6, TelemetryPanelRenderContext as a7, TelemetrySeriesKey as a8, TelemetrySeverity as a9, TelemetryValidationDiagnostics as aa, TelemetryValidationIssue as ab, TelemetryValidationOptions as ac, TelemetryWindow as ad, TimeDeltaPoint as ae, TyreClassification as af, TyreCompound as ag, TyreStint as ah, WeatherDataPoint as ai, WeatherMetric as aj, TelemetryDashboardProps as b, TyreStrategyTimelineProps as c, GapChartProps as d, SpeedHeatmapTrackMapProps as e, PitStopTimelineProps as f, ThemeMode as g, TelemetryStyleTokens as h, TelemetryValidationResult as i, TelemetryAnnotation as j, TelemetryPanelExtension as k, AdapterParseOptions as l, AdaptiveDownsampleOptions as m, AnnotationProps as n, CsvExportOptions as o, CursorSyncProps as p, DeltaPoint as q, DistanceBasedTelemetry as r, DownsampleStrategy as s, DriverGapData as t, DriverLapTelemetry as u, DriverMetrics as v, DriverPitStops as w, DriverPositionData as x, DriverPositionHistory as y, DriverSectorData as z };
+export type { TelemetryExtraChannel as $, AdapterName as A, SectorTime as B, ChartContainerProps as C, DataProcessingOptions as D, EnergyChartProps as E, FormattedTelemetry as F, GapChartProps as G, SpeedChartProps as H, IssueSeverity as I, JsonExportFormat as J, SpeedHeatmapTrackMapProps as K, LapComparisonChartProps as L, MiniSectorsProps as M, TelemetryAdapterDiagnostics as N, OvertakeEvent as O, PitStop as P, TelemetryAdapterResult as Q, RadarChartProps as R, SectorComparison as S, TelemetryAdapterDiagnostic as T, TelemetryAnnotation as U, TelemetryAnnotationType as V, TelemetryChartType as W, TelemetryDashboardLayout as X, TelemetryDashboardLayoutItem as Y, TelemetryDashboardProps as Z, TelemetryEvent as _, AdapterParseOptions as a, TelemetryPanelContextMenuAction as a0, TelemetryPanelExtension as a1, TelemetryPanelRenderContext as a2, TelemetrySeriesKey as a3, TelemetrySeverity as a4, TelemetrySharedChannelApi as a5, TelemetryStyleTokens as a6, TelemetryTimeReference as a7, TelemetryValidationDiagnostics as a8, TelemetryValidationIssue as a9, TelemetryValidationOptions as aa, TelemetryValidationResult as ab, TelemetryWindow as ac, ThemeMode as ad, ThrottleBrakeChartProps as ae, TimeDeltaPoint as af, TrackMapProps as ag, TyreClassification as ah, TyreCompound as ai, TyreStint as aj, TyreStrategyTimelineProps as ak, ValidationMode as al, WeatherDataPoint as am, WeatherMetric as an, WeatherWidgetProps as ao, AdaptiveDownsampleOptions as b, AnnotationProps as c, CsvExportOptions as d, CursorSyncProps as e, DeltaPoint as f, DistanceBasedTelemetry as g, DownsampleStrategy as h, DriverGapData as i, DriverLapTelemetry as j, DriverMetrics as k, DriverPitStops as l, DriverPositionData as m, DriverPositionHistory as n, DriverSectorData as o, DriverStrategy as p, GapDataPoint as q, GearChartProps as r, LapComparisonMode as s, LapSectors as t, LapTime as u, PitStopTimelineProps as v, PositionChartProps as w, RawTelemetryInput as x, RawTelemetryPoint as y, SectorSplit as z };

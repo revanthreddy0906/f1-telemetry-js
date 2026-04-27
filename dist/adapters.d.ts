@@ -1,4 +1,4 @@
-import { F as FormattedTelemetry, l as AdapterParseOptions, a2 as TelemetryAdapterResult } from './telemetry-B9VIxR8w.js';
+import { F as FormattedTelemetry, a as AdapterParseOptions, Q as TelemetryAdapterResult } from './telemetry-CQTgwsmr.js';
 import 'react';
 
 type FastF1TelemetryPoint = {

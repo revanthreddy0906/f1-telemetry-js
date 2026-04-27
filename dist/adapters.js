@@ -3,8 +3,6 @@ import {
   fetchOpenF1Sessions,
   fetchOpenF1Telemetry,
   fetchOpenF1TelemetryWithDiagnostics,
-  fromCsvTelemetry,
-  fromCsvTelemetryWithDiagnostics,
   fromErgastApi,
   fromFastF1Telemetry,
   fromFastF1TelemetryWithDiagnostics,
@@ -17,7 +15,11 @@ import {
   fromOpenF1TelemetryWithDiagnostics,
   fromParquet,
   fromParquetWithDiagnostics
-} from "./chunk-SPFWGXFA.js";
+} from "./chunk-VK2JTYWJ.js";
+import {
+  fromCsvTelemetry,
+  fromCsvTelemetryWithDiagnostics
+} from "./chunk-3TSKDY3A.js";
 import "./chunk-HW46UJWW.js";
 export {
   fetchOpenF1Drivers,

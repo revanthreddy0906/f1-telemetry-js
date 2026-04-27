@@ -46,6 +46,7 @@ __export(src_exports, {
   SpeedChart: () => SpeedChart,
   SpeedHeatmapTrackMap: () => SpeedHeatmapTrackMap,
   TEAM_COLORS: () => TEAM_COLORS,
+  TELEMETRY_EXTENSION_API_VERSION: () => TELEMETRY_EXTENSION_API_VERSION,
   TRACKS: () => TRACKS,
   TYRE_COMPOUNDS: () => TYRE_COMPOUNDS,
   TelemetryDashboard: () => TelemetryDashboard,
@@ -55,6 +56,7 @@ __export(src_exports, {
   TrackMap: () => TrackMap,
   TyreStrategyTimeline: () => TyreStrategyTimeline,
   WeatherWidget: () => WeatherWidget,
+  assertTelemetryExtensionCompatible: () => assertTelemetryExtensionCompatible,
   classifyTyreCompound: () => classifyTyreCompound,
   clearTelemetryPanels: () => clearTelemetryPanels,
   computeLapTimes: () => computeLapTimes,
@@ -106,9 +108,14 @@ __export(src_exports, {
   lapSummaryPanel: () => lapSummaryPanel,
   mergeTelemetry: () => mergeTelemetry,
   normalizeDistance: () => normalizeDistance,
+  normalizeTelemetryPanelExtension: () => normalizeTelemetryPanelExtension,
+  normalizeTelemetryTime: () => normalizeTelemetryTime,
+  overtakeTimelinePanel: () => overtakeTimelinePanel,
   processSeriesData: () => processSeriesData,
   processSeriesDataInWorker: () => processSeriesDataInWorker,
   registerTelemetryPanel: () => registerTelemetryPanel,
+  sectorPaceEvolutionPanel: () => sectorPaceEvolutionPanel,
+  stintDegradationPanel: () => stintDegradationPanel,
   telemetryCssVariables: () => telemetryCssVariables,
   telemetryStatsPanel: () => telemetryStatsPanel,
   unregisterTelemetryPanel: () => unregisterTelemetryPanel,
@@ -1589,13 +1596,36 @@ var TrackMap = ({
 // src/components/TelemetryDashboard.tsx
 var import_react7 = require("react");
 
+// src/extensions/contracts.ts
+var TELEMETRY_EXTENSION_API_VERSION = "2.0.0";
+var getMajorVersion = (value) => {
+  const [major] = value.split(".");
+  const parsed = Number(major);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+var assertTelemetryExtensionCompatible = (extension) => {
+  const extensionApiVersion = extension.apiVersion ?? TELEMETRY_EXTENSION_API_VERSION;
+  if (getMajorVersion(extensionApiVersion) !== getMajorVersion(TELEMETRY_EXTENSION_API_VERSION)) {
+    throw new Error(
+      `Telemetry extension "${extension.id}" is incompatible with API ${TELEMETRY_EXTENSION_API_VERSION}.`
+    );
+  }
+};
+var normalizeTelemetryPanelExtension = (extension) => {
+  assertTelemetryExtensionCompatible(extension);
+  return {
+    ...extension,
+    apiVersion: extension.apiVersion ?? TELEMETRY_EXTENSION_API_VERSION
+  };
+};
+
 // src/extensions/registry.ts
 var panelRegistry = /* @__PURE__ */ new Map();
 var registerTelemetryPanel = (extension) => {
   if (!extension.id) {
     throw new Error("Telemetry panel extension must include a non-empty id.");
   }
-  panelRegistry.set(extension.id, extension);
+  panelRegistry.set(extension.id, normalizeTelemetryPanelExtension(extension));
 };
 var unregisterTelemetryPanel = (id) => {
   panelRegistry.delete(id);
@@ -1607,7 +1637,72 @@ var getTelemetryPanels = () => Array.from(panelRegistry.values()).sort((left, ri
 
 // src/components/TelemetryDashboard.tsx
 var import_jsx_runtime7 = require("react/jsx-runtime");
-var sortPanels = (panels) => panels.sort((left, right) => (left.order ?? 0) - (right.order ?? 0));
+var LAYOUT_STORAGE_PREFIX = "f1-telemetry-layout";
+var sortPanels = (panels) => [...panels].sort((left, right) => (left.order ?? 0) - (right.order ?? 0));
+var clampWidth = (value) => {
+  if (value <= 1) {
+    return 1;
+  }
+  if (value >= 3) {
+    return 3;
+  }
+  return 2;
+};
+var defaultPanelWidth = (panelId) => panelId === "default-track-map" || panelId === "default-lap-comparison" ? 2 : 1;
+var createLayoutFromIds = (panelIds, input) => {
+  const inputItems = input?.items ?? [];
+  const fromInput = new Map(inputItems.map((item) => [item.id, item]));
+  const items = panelIds.map((id, index) => {
+    const existing = fromInput.get(id);
+    return {
+      id,
+      order: typeof existing?.order === "number" ? existing.order : index,
+      width: clampWidth(existing?.width ?? defaultPanelWidth(id)),
+      hidden: existing?.hidden ?? false
+    };
+  });
+  items.sort((left, right) => left.order - right.order);
+  return {
+    items: items.map((item, index) => ({ ...item, order: index }))
+  };
+};
+var getLayoutStorageKey = (key) => `${LAYOUT_STORAGE_PREFIX}:${key}`;
+var getStorage = () => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const storage = window.localStorage;
+  if (!storage || typeof storage.getItem !== "function" || typeof storage.setItem !== "function") {
+    return null;
+  }
+  return storage;
+};
+var loadLayout = (key, panelIds, fallback) => {
+  const safeFallback = createLayoutFromIds(panelIds, fallback);
+  const storage = getStorage();
+  if (!storage) {
+    return safeFallback;
+  }
+  try {
+    const raw = storage.getItem(getLayoutStorageKey(key));
+    if (!raw) {
+      return safeFallback;
+    }
+    const parsed = JSON.parse(raw);
+    return createLayoutFromIds(panelIds, parsed);
+  } catch {
+    return safeFallback;
+  }
+};
+var controlButtonStyle = (border, background, text) => ({
+  border: `1px solid ${border}`,
+  background,
+  color: text,
+  borderRadius: 8,
+  padding: "4px 8px",
+  fontSize: 12,
+  cursor: "pointer"
+});
 var TelemetryDashboard = ({
   telemetry,
   comparison,
@@ -1624,11 +1719,17 @@ var TelemetryDashboard = ({
   panelGap = 16,
   minPanelWidth = 320,
   includeDefaultPanels = true,
-  extensions = []
+  extensions = [],
+  enableLayoutEditor = true,
+  persistLayout = true,
+  layoutStorageKey = "default",
+  defaultLayout,
+  onLayoutChange
 }) => {
   const [cursorTime, setCursorTime] = (0, import_react7.useState)(null);
   const sharedCursor = syncCursor ? cursorTime : null;
   const onCursorChange = syncCursor ? setCursorTime : void 0;
+  const palette = (0, import_react7.useMemo)(() => resolveThemeTokens(theme, styleTokens), [theme, styleTokens]);
   const driver2 = (0, import_react7.useMemo)(
     () => comparison ?? {
       time: telemetry.time,
@@ -1637,17 +1738,166 @@ var TelemetryDashboard = ({
     },
     [comparison, telemetry.time, telemetry.speed]
   );
-  const cssTokenStyle = (0, import_react7.useMemo)(
-    () => createTelemetryCssVariables(styleTokens ?? {}),
-    [styleTokens]
-  );
   const extensionPanels = (0, import_react7.useMemo)(() => {
     const allPanels = /* @__PURE__ */ new Map();
     getTelemetryPanels().forEach((panel) => allPanels.set(panel.id, panel));
     extensions.forEach((panel) => allPanels.set(panel.id, panel));
     return sortPanels(Array.from(allPanels.values()));
   }, [extensions]);
-  const panelContext = (0, import_react7.useMemo)(
+  const panelDefinitions = (0, import_react7.useMemo)(() => {
+    const definitions = [];
+    if (includeDefaultPanels) {
+      definitions.push(
+        {
+          id: "default-speed",
+          title: "Speed",
+          render: (context) => /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+            SpeedChart,
+            {
+              title: "Speed",
+              time: context.telemetry.time,
+              speed: context.telemetry.speed,
+              theme: context.theme,
+              processing: context.processing,
+              styleTokens: context.styleTokens,
+              annotations: context.annotations,
+              height: chartHeight,
+              cursorTime: context.cursorTime,
+              onCursorTimeChange: onCursorChange,
+              showCursor: syncCursor
+            }
+          )
+        },
+        {
+          id: "default-inputs",
+          title: "Driver Inputs",
+          render: (context) => /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+            ThrottleBrakeChart,
+            {
+              title: "Driver Inputs",
+              time: context.telemetry.time,
+              throttle: context.telemetry.throttle,
+              brake: context.telemetry.brake,
+              theme: context.theme,
+              processing: context.processing,
+              styleTokens: context.styleTokens,
+              annotations: context.annotations,
+              height: chartHeight,
+              cursorTime: context.cursorTime,
+              onCursorTimeChange: onCursorChange,
+              showCursor: syncCursor
+            }
+          )
+        },
+        {
+          id: "default-lap-comparison",
+          title: lapMode === "delta" ? "Lap Delta" : "Lap Comparison",
+          render: (context) => /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+            LapComparisonChart,
+            {
+              title: context.lapMode === "delta" ? "Lap Delta" : "Lap Comparison",
+              driver1: { time: context.telemetry.time, speed: context.telemetry.speed, label: "Driver 1" },
+              driver2: context.comparison ?? driver2,
+              mode: context.lapMode,
+              sectorMarkers: context.sectorMarkers,
+              annotations: context.annotations,
+              theme: context.theme,
+              processing: context.processing,
+              styleTokens: context.styleTokens,
+              height: chartHeight,
+              cursorTime: context.cursorTime,
+              onCursorTimeChange: onCursorChange,
+              showCursor: syncCursor
+            }
+          )
+        },
+        {
+          id: "default-track-map",
+          title: "Track Position",
+          render: (context) => /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+            TrackMap,
+            {
+              title: "Track Position",
+              x: context.telemetry.x,
+              y: context.telemetry.y,
+              time: context.telemetry.time,
+              annotations: context.annotations,
+              theme: context.theme,
+              processing: context.processing,
+              styleTokens: context.styleTokens,
+              height: trackMapHeight,
+              cursorTime: context.cursorTime,
+              onCursorTimeChange: onCursorChange,
+              showCursor: syncCursor
+            }
+          )
+        }
+      );
+    }
+    extensionPanels.forEach((panel) => {
+      definitions.push({
+        id: panel.id,
+        title: panel.title ?? panel.id,
+        extension: panel,
+        render: (context) => /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(import_jsx_runtime7.Fragment, { children: panel.render(context) })
+      });
+    });
+    return definitions;
+  }, [
+    includeDefaultPanels,
+    extensionPanels,
+    chartHeight,
+    trackMapHeight,
+    syncCursor,
+    onCursorChange,
+    lapMode,
+    driver2
+  ]);
+  const panelIds = (0, import_react7.useMemo)(() => panelDefinitions.map((panel) => panel.id), [panelDefinitions]);
+  const [layout, setLayout] = (0, import_react7.useState)(
+    () => persistLayout ? loadLayout(layoutStorageKey, panelIds, defaultLayout) : createLayoutFromIds(panelIds, defaultLayout)
+  );
+  (0, import_react7.useEffect)(() => {
+    setLayout((current) => createLayoutFromIds(panelIds, current.items.length > 0 ? current : defaultLayout));
+  }, [panelIds, defaultLayout]);
+  (0, import_react7.useEffect)(() => {
+    const storage = getStorage();
+    if (!persistLayout || !storage) {
+      onLayoutChange?.(layout);
+      return;
+    }
+    storage.setItem(getLayoutStorageKey(layoutStorageKey), JSON.stringify(layout));
+    onLayoutChange?.(layout);
+  }, [layout, persistLayout, layoutStorageKey, onLayoutChange]);
+  const channelValuesRef = (0, import_react7.useRef)(/* @__PURE__ */ new Map());
+  const channelListenersRef = (0, import_react7.useRef)(/* @__PURE__ */ new Map());
+  const shared = (0, import_react7.useMemo)(
+    () => ({
+      publish: (channel, payload) => {
+        channelValuesRef.current.set(channel, payload);
+        const listeners = channelListenersRef.current.get(channel);
+        listeners?.forEach((listener) => listener(payload));
+      },
+      read: (channel) => channelValuesRef.current.get(channel),
+      subscribe: (channel, listener) => {
+        const listeners = channelListenersRef.current.get(channel) ?? /* @__PURE__ */ new Set();
+        listeners.add(listener);
+        channelListenersRef.current.set(channel, listeners);
+        return () => {
+          const nextListeners = channelListenersRef.current.get(channel);
+          if (!nextListeners) {
+            return;
+          }
+          nextListeners.delete(listener);
+          if (nextListeners.size === 0) {
+            channelListenersRef.current.delete(channel);
+          }
+        };
+      }
+    }),
+    []
+  );
+  const basePanelContext = (0, import_react7.useMemo)(
     () => ({
       telemetry,
       comparison: driver2,
@@ -1657,106 +1907,182 @@ var TelemetryDashboard = ({
       theme,
       styleTokens,
       processing,
-      cursorTime: sharedCursor,
-      setCursorTime
+      setCursorTime,
+      shared
     }),
-    [
-      telemetry,
-      driver2,
-      lapMode,
-      sectorMarkers,
-      annotations,
-      theme,
-      styleTokens,
-      processing,
-      sharedCursor
-    ]
+    [telemetry, driver2, lapMode, sectorMarkers, annotations, theme, styleTokens, processing, shared]
   );
-  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
-    "div",
-    {
-      className,
-      style: {
-        ...cssTokenStyle,
-        display: "grid",
-        gap: panelGap,
-        gridTemplateColumns: `repeat(auto-fit, minmax(${minPanelWidth}px, 1fr))`
-      },
-      children: [
-        includeDefaultPanels ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(import_jsx_runtime7.Fragment, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-            SpeedChart,
-            {
-              title: "Speed",
-              time: telemetry.time,
-              speed: telemetry.speed,
-              theme,
-              processing,
-              styleTokens,
-              annotations,
-              height: chartHeight,
-              cursorTime: sharedCursor,
-              onCursorTimeChange: onCursorChange,
-              showCursor: syncCursor
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-            ThrottleBrakeChart,
-            {
-              title: "Driver Inputs",
-              time: telemetry.time,
-              throttle: telemetry.throttle,
-              brake: telemetry.brake,
-              theme,
-              processing,
-              styleTokens,
-              annotations,
-              height: chartHeight,
-              cursorTime: sharedCursor,
-              onCursorTimeChange: onCursorChange,
-              showCursor: syncCursor
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-            LapComparisonChart,
-            {
-              title: lapMode === "delta" ? "Lap Delta" : "Lap Comparison",
-              driver1: { time: telemetry.time, speed: telemetry.speed, label: "Driver 1" },
-              driver2,
-              mode: lapMode,
-              sectorMarkers,
-              annotations,
-              theme,
-              processing,
-              styleTokens,
-              height: chartHeight,
-              cursorTime: sharedCursor,
-              onCursorTimeChange: onCursorChange,
-              showCursor: syncCursor
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-            TrackMap,
-            {
-              title: "Track Position",
-              x: telemetry.x,
-              y: telemetry.y,
-              time: telemetry.time,
-              annotations,
-              theme,
-              processing,
-              styleTokens,
-              height: trackMapHeight,
-              cursorTime: sharedCursor,
-              onCursorTimeChange: onCursorChange,
-              showCursor: syncCursor
-            }
-          )
-        ] }) : null,
-        extensionPanels.map((panel) => /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { children: panel.render(panelContext) }, panel.id))
-      ]
+  const createPanelContext = (0, import_react7.useCallback)(
+    (panelId) => ({
+      panelId,
+      ...basePanelContext,
+      cursorTime: sharedCursor
+    }),
+    [basePanelContext, sharedCursor]
+  );
+  const createLifecycleContext = (0, import_react7.useCallback)(
+    (panelId) => ({
+      panelId,
+      ...basePanelContext,
+      cursorTime: null
+    }),
+    [basePanelContext]
+  );
+  (0, import_react7.useEffect)(() => {
+    extensionPanels.forEach((panel) => {
+      panel.onMount?.(createLifecycleContext(panel.id));
+    });
+    return () => {
+      extensionPanels.forEach((panel) => {
+        panel.onUnmount?.(createLifecycleContext(panel.id));
+      });
+    };
+  }, [extensionPanels, createLifecycleContext]);
+  const definitionById = (0, import_react7.useMemo)(
+    () => new Map(panelDefinitions.map((definition) => [definition.id, definition])),
+    [panelDefinitions]
+  );
+  const orderedItems = (0, import_react7.useMemo)(
+    () => [...layout.items].sort((left, right) => left.order - right.order),
+    [layout.items]
+  );
+  const visibleItems = orderedItems.filter((item) => !item.hidden && definitionById.has(item.id));
+  const updateLayoutItems = (0, import_react7.useCallback)(
+    (updater) => {
+      setLayout((current) => ({
+        items: updater([...current.items]).map((item, index) => ({
+          ...item,
+          order: index
+        }))
+      }));
+    },
+    []
+  );
+  const moveItem = (id, delta) => {
+    updateLayoutItems((items) => {
+      const index = items.findIndex((item2) => item2.id === id);
+      const target = index + delta;
+      if (index < 0 || target < 0 || target >= items.length) {
+        return items;
+      }
+      const next = [...items];
+      const [item] = next.splice(index, 1);
+      next.splice(target, 0, item);
+      return next;
+    });
+  };
+  const resizeItem = (id, delta) => {
+    updateLayoutItems(
+      (items) => items.map(
+        (item) => item.id === id ? {
+          ...item,
+          width: clampWidth(item.width + delta)
+        } : item
+      )
+    );
+  };
+  const toggleItemVisibility = (id) => {
+    updateLayoutItems(
+      (items) => items.map((item) => item.id === id ? { ...item, hidden: !item.hidden } : item)
+    );
+  };
+  const resetLayout = () => {
+    setLayout(createLayoutFromIds(panelIds, defaultLayout));
+  };
+  const renderContextAction = (action, context, key) => {
+    if (action.isVisible && !action.isVisible(context)) {
+      return null;
     }
+    const disabled = action.isDisabled?.(context) ?? false;
+    return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+      "button",
+      {
+        type: "button",
+        onClick: () => action.onSelect(context),
+        disabled,
+        style: controlButtonStyle(palette.border, palette.primarySoft, palette.text),
+        children: action.label
+      },
+      key
+    );
+  };
+  const cssTokenStyle = (0, import_react7.useMemo)(
+    () => createTelemetryCssVariables(styleTokens ?? {}),
+    [styleTokens]
   );
+  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { style: { display: "grid", gap: panelGap }, children: [
+    enableLayoutEditor ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+      "section",
+      {
+        style: {
+          ...cssTokenStyle,
+          borderRadius: 12,
+          border: `1px solid ${palette.border}`,
+          background: palette.background,
+          color: palette.text,
+          boxShadow: palette.shadow,
+          padding: 12
+        },
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { style: { display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 8 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("strong", { children: "Layout Editor" }),
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { type: "button", onClick: resetLayout, style: controlButtonStyle(palette.border, palette.primarySoft, palette.text), children: "Reset Layout" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { style: { display: "grid", gap: 8 }, children: orderedItems.map((item) => {
+            const definition = definitionById.get(item.id);
+            if (!definition) {
+              return null;
+            }
+            return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+              "div",
+              {
+                style: {
+                  display: "grid",
+                  gridTemplateColumns: "1fr auto auto auto auto auto",
+                  gap: 6,
+                  alignItems: "center"
+                },
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { style: { fontSize: 13 }, children: definition.title }),
+                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { type: "button", onClick: () => moveItem(item.id, -1), style: controlButtonStyle(palette.border, palette.primarySoft, palette.text), children: "Up" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { type: "button", onClick: () => moveItem(item.id, 1), style: controlButtonStyle(palette.border, palette.primarySoft, palette.text), children: "Down" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { type: "button", onClick: () => resizeItem(item.id, -1), style: controlButtonStyle(palette.border, palette.primarySoft, palette.text), children: "-" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { type: "button", onClick: () => resizeItem(item.id, 1), style: controlButtonStyle(palette.border, palette.primarySoft, palette.text), children: "+" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { type: "button", onClick: () => toggleItemVisibility(item.id), style: controlButtonStyle(palette.border, palette.primarySoft, palette.text), children: item.hidden ? "Show" : "Hide" })
+                ]
+              },
+              `editor-${item.id}`
+            );
+          }) })
+        ]
+      }
+    ) : null,
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+      "div",
+      {
+        className,
+        style: {
+          ...cssTokenStyle,
+          display: "grid",
+          gap: panelGap,
+          gridTemplateColumns: `repeat(auto-fit, minmax(${minPanelWidth}px, 1fr))`
+        },
+        children: visibleItems.map((item) => {
+          const definition = definitionById.get(item.id);
+          if (!definition) {
+            return null;
+          }
+          const context = createPanelContext(item.id);
+          const actions = definition.extension?.contextMenuActions ?? [];
+          return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { style: { gridColumn: `span ${item.width}` }, children: [
+            actions.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }, children: actions.map((action) => renderContextAction(action, context, `${item.id}:${action.id}`)) }) : null,
+            definition.render(context)
+          ] }, item.id);
+        })
+      }
+    ),
+    visibleItems.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("p", { style: { color: palette.mutedText, margin: 0 }, children: "No dashboard panels are visible. Use Layout Editor to show panels." }) : null
+  ] });
 };
 
 // src/components/GearChart.tsx
@@ -3670,6 +3996,31 @@ var WeatherWidget = ({
 // src/components/TelemetryPlayground.tsx
 var import_react18 = require("react");
 
+// src/utils/timeSemantics.ts
+var round = (value) => Number(value.toFixed(6));
+var normalizeTelemetryTime = (telemetry, options = {}) => {
+  const timeReference = options.timeReference ?? telemetry.timeReference ?? "session";
+  if (telemetry.time.length === 0) {
+    return {
+      ...telemetry,
+      timeReference
+    };
+  }
+  const baseline = telemetry.time[0];
+  const normalizedTime = telemetry.time.map((value) => round(value - baseline));
+  const normalizedEvents = telemetry.events?.map((event) => ({
+    ...event,
+    time: round(event.time - baseline),
+    timeReference
+  }));
+  return {
+    ...telemetry,
+    time: normalizedTime,
+    events: normalizedEvents,
+    timeReference
+  };
+};
+
 // src/utils/formatTelemetry.ts
 var TIME_KEYS = ["time", "timestamp", "t", "elapsed", "elapsedTime"];
 var SPEED_KEYS = ["speed", "velocity", "v"];
@@ -3804,7 +4155,8 @@ var formatTelemetry = (data) => {
     throttle: [],
     brake: [],
     x: [],
-    y: []
+    y: [],
+    timeReference: "session"
   };
   const extraChannelBuffers = Object.fromEntries(
     Object.keys(EXTRA_CHANNEL_KEY_MAP).map((channel) => [channel, []])
@@ -3838,8 +4190,9 @@ var formatTelemetry = (data) => {
   if (events.length > 0) {
     formatted.events = events;
   }
-  warnTelemetryIssues(validateTelemetry(formatted, "formatTelemetry"));
-  return formatted;
+  const normalized = normalizeTelemetryTime(formatted);
+  warnTelemetryIssues(validateTelemetry(normalized, "formatTelemetry"));
+  return normalized;
 };
 
 // src/adapters/diagnostics.ts
@@ -3990,7 +4343,8 @@ var EXAMPLE_CSV = (() => {
   }
   return rows.join("\n");
 })();
-var controlButtonStyle = (palette) => ({
+var TELEMETRY_FIELDS = ["time", "speed", "throttle", "brake", "x", "y"];
+var controlButtonStyle2 = (palette) => ({
   border: `1px solid ${palette.border}`,
   background: palette.primarySoft,
   color: palette.text,
@@ -3999,6 +4353,81 @@ var controlButtonStyle = (palette) => ({
   fontWeight: 600,
   cursor: "pointer"
 });
+var parseSimpleCsv = (csvText) => csvText.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0).map((line) => line.split(",").map((entry) => entry.trim()));
+var toNumber2 = (value) => {
+  if (value.trim() === "") {
+    return null;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+var applyMappingTransform = (csvText, fieldMapping, options) => {
+  const table = parseSimpleCsv(csvText);
+  if (table.length < 2) {
+    return {
+      csv: "time,speed,throttle,brake,x,y",
+      previewRows: [],
+      issues: ["CSV must include a header row and at least one sample row for wizard mapping."]
+    };
+  }
+  const [headers, ...rows] = table;
+  const headerIndex = new Map(headers.map((header, index) => [header, index]));
+  const issues = [];
+  TELEMETRY_FIELDS.forEach((field) => {
+    const selectedHeader = fieldMapping[field];
+    if (!selectedHeader || !headerIndex.has(selectedHeader)) {
+      issues.push(`Map "${field}" to a valid CSV column.`);
+    }
+  });
+  const mappedRows = rows.map((row) => {
+    const mapped = {
+      time: "",
+      speed: "",
+      throttle: "",
+      brake: "",
+      x: "",
+      y: ""
+    };
+    TELEMETRY_FIELDS.forEach((field) => {
+      const selectedHeader = fieldMapping[field];
+      const selectedIndex = selectedHeader ? headerIndex.get(selectedHeader) : void 0;
+      mapped[field] = selectedIndex === void 0 ? "" : row[selectedIndex] ?? "";
+    });
+    return mapped;
+  });
+  if (options.normalizeTime) {
+    const firstTime = mappedRows.map((row) => toNumber2(row.time)).find((value) => value !== null);
+    if (firstTime !== void 0) {
+      mappedRows.forEach((row) => {
+        const time = toNumber2(row.time);
+        if (time !== null) {
+          row.time = (time - firstTime).toFixed(6);
+        }
+      });
+    }
+  }
+  if (options.clampInputs) {
+    mappedRows.forEach((row) => {
+      const throttle = toNumber2(row.throttle);
+      const brake = toNumber2(row.brake);
+      if (throttle !== null) {
+        row.throttle = Math.max(0, Math.min(100, throttle)).toFixed(6);
+      }
+      if (brake !== null) {
+        row.brake = Math.max(0, Math.min(100, brake)).toFixed(6);
+      }
+    });
+  }
+  const outputRows = [
+    "time,speed,throttle,brake,x,y",
+    ...mappedRows.map((row) => TELEMETRY_FIELDS.map((field) => row[field]).join(","))
+  ];
+  return {
+    csv: outputRows.join("\n"),
+    previewRows: mappedRows.slice(0, 5).map((row) => TELEMETRY_FIELDS.map((field) => row[field])),
+    issues
+  };
+};
 var TelemetryPlayground = ({
   theme = "dark",
   styleTokens,
@@ -4009,14 +4438,39 @@ var TelemetryPlayground = ({
   processing,
   onTelemetryParsed,
   title = "Telemetry Playground",
-  ariaLabel
+  ariaLabel,
+  showImportWizard = true
 }) => {
   const palette = (0, import_react18.useMemo)(() => resolveThemeTokens(theme, styleTokens), [theme, styleTokens]);
   const [csvText, setCsvText] = (0, import_react18.useState)(defaultCsv);
   const [telemetry, setTelemetry] = (0, import_react18.useState)(null);
   const [validationErrors, setValidationErrors] = (0, import_react18.useState)([]);
+  const [normalizeTime, setNormalizeTime] = (0, import_react18.useState)(true);
+  const [clampInputs, setClampInputs] = (0, import_react18.useState)(true);
+  const headers = (0, import_react18.useMemo)(() => {
+    const [firstRow] = parseSimpleCsv(csvText);
+    return firstRow ?? [];
+  }, [csvText]);
+  const [fieldMapping, setFieldMapping] = (0, import_react18.useState)({
+    time: "time",
+    speed: "speed",
+    throttle: "throttle",
+    brake: "brake",
+    x: "x",
+    y: "y"
+  });
+  const mappingTransform = (0, import_react18.useMemo)(
+    () => applyMappingTransform(csvText, fieldMapping, { normalizeTime, clampInputs }),
+    [csvText, fieldMapping, normalizeTime, clampInputs]
+  );
   const parseCsv = () => {
-    const parsed = fromCsvTelemetry(csvText);
+    const parseIssues = showImportWizard ? mappingTransform.issues : [];
+    if (parseIssues.length > 0) {
+      setTelemetry(null);
+      setValidationErrors(parseIssues);
+      return;
+    }
+    const parsed = fromCsvTelemetry(showImportWizard ? mappingTransform.csv : csvText);
     const validation = validateTelemetry(parsed, "TelemetryPlayground");
     if (!validation.isValid) {
       setTelemetry(null);
@@ -4030,6 +4484,14 @@ var TelemetryPlayground = ({
   const loadExample = () => {
     setCsvText(EXAMPLE_CSV);
     setValidationErrors([]);
+    setFieldMapping({
+      time: "time",
+      speed: "speed",
+      throttle: "throttle",
+      brake: "brake",
+      x: "x",
+      y: "y"
+    });
   };
   const chartGridStyle = (0, import_react18.useMemo)(
     () => ({
@@ -4039,7 +4501,7 @@ var TelemetryPlayground = ({
     }),
     []
   );
-  const containerHeight = Math.max(640, chartHeight * (charts.includes("dashboard") ? 3 : 2));
+  const containerHeight = Math.max(760, chartHeight * (charts.includes("dashboard") ? 3 : 2));
   return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
     TelemetryCard,
     {
@@ -4050,7 +4512,7 @@ var TelemetryPlayground = ({
       styleTokens,
       ariaLabel,
       defaultAriaLabel: "Telemetry CSV playground",
-      children: /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { height: "100%", display: "grid", gridTemplateRows: "auto auto 1fr", gap: 12 }, children: [
+      children: /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { height: "100%", display: "grid", gridTemplateRows: "auto auto auto 1fr", gap: 12 }, children: [
         /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
           "textarea",
           {
@@ -4072,9 +4534,95 @@ var TelemetryPlayground = ({
             }
           }
         ),
+        showImportWizard ? /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
+          "section",
+          {
+            style: {
+              borderRadius: 10,
+              border: `1px solid ${palette.border}`,
+              background: palette.background,
+              padding: 12,
+              display: "grid",
+              gap: 10
+            },
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("strong", { style: { fontSize: 13 }, children: "Import Wizard" }),
+              /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }, children: TELEMETRY_FIELDS.map((field) => /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("label", { style: { display: "grid", gap: 4, fontSize: 12 }, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { children: field }),
+                /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
+                  "select",
+                  {
+                    "aria-label": `Map field ${field}`,
+                    value: fieldMapping[field],
+                    onChange: (event) => setFieldMapping((current) => ({
+                      ...current,
+                      [field]: event.target.value
+                    })),
+                    style: {
+                      borderRadius: 8,
+                      border: `1px solid ${palette.border}`,
+                      background: palette.background,
+                      color: palette.text,
+                      padding: "6px 8px"
+                    },
+                    children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("option", { value: "", children: "(unmapped)" }),
+                      headers.map((header) => /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("option", { value: header, children: header }, `${field}-${header}`))
+                    ]
+                  }
+                )
+              ] }, field)) }),
+              /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12 }, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("label", { style: { display: "flex", gap: 6, alignItems: "center" }, children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+                    "input",
+                    {
+                      type: "checkbox",
+                      checked: normalizeTime,
+                      onChange: (event) => setNormalizeTime(event.target.checked)
+                    }
+                  ),
+                  "Normalize time from first sample"
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("label", { style: { display: "flex", gap: 6, alignItems: "center" }, children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+                    "input",
+                    {
+                      type: "checkbox",
+                      checked: clampInputs,
+                      onChange: (event) => setClampInputs(event.target.checked)
+                    }
+                  ),
+                  "Clamp throttle/brake to 0-100"
+                ] })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("strong", { style: { fontSize: 12 }, children: "Preview (first 5 transformed rows)" }),
+                /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { overflowX: "auto", marginTop: 6 }, children: /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 12 }, children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("tr", { children: TELEMETRY_FIELDS.map((field) => /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+                    "th",
+                    {
+                      style: { textAlign: "left", padding: "4px 6px", borderBottom: `1px solid ${palette.border}` },
+                      children: field
+                    },
+                    `preview-header-${field}`
+                  )) }) }),
+                  /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("tbody", { children: mappingTransform.previewRows.map((row, rowIndex) => /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("tr", { children: row.map((value, columnIndex) => /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+                    "td",
+                    {
+                      style: { padding: "4px 6px", borderBottom: `1px solid ${palette.border}` },
+                      children: value
+                    },
+                    `preview-cell-${rowIndex}-${columnIndex}`
+                  )) }, `preview-row-${rowIndex}`)) })
+                ] }) })
+              ] })
+            ]
+          }
+        ) : null,
         /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { display: "flex", gap: 8, flexWrap: "wrap" }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("button", { type: "button", onClick: parseCsv, style: controlButtonStyle(palette), children: "Parse" }),
-          /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("button", { type: "button", onClick: loadExample, style: controlButtonStyle(palette), children: "Load Example" })
+          /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("button", { type: "button", onClick: parseCsv, style: controlButtonStyle2(palette), children: "Parse" }),
+          /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("button", { type: "button", onClick: loadExample, style: controlButtonStyle2(palette), children: "Load Example" })
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { overflow: "auto", paddingRight: 4 }, children: [
           validationErrors.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
@@ -4179,13 +4727,40 @@ var processTelemetry = (telemetry, processing) => {
     },
     processing
   });
+  const processedChannels = telemetry.channels ? Object.fromEntries(
+    Object.entries(telemetry.channels).map(([channel, values]) => {
+      const channelResult = processSeriesData({
+        context: `useTelemetry.channels.${channel}`,
+        time: telemetry.time,
+        seriesMap: {
+          values: values ?? []
+        },
+        processing
+      });
+      return [channel, channelResult.seriesMap.values ?? []];
+    })
+  ) : void 0;
+  const processedEvents = telemetry.events ? telemetry.events.filter((event) => {
+    const start = processing.window?.startTime;
+    const end = processing.window?.endTime;
+    if (typeof start === "number" && event.time < start) {
+      return false;
+    }
+    if (typeof end === "number" && event.time > end) {
+      return false;
+    }
+    return true;
+  }) : void 0;
   return {
     time: result.time,
     speed: result.seriesMap.speed ?? EMPTY_TELEMETRY.speed,
     throttle: result.seriesMap.throttle ?? EMPTY_TELEMETRY.throttle,
     brake: result.seriesMap.brake ?? EMPTY_TELEMETRY.brake,
     x: result.seriesMap.x ?? EMPTY_TELEMETRY.x,
-    y: result.seriesMap.y ?? EMPTY_TELEMETRY.y
+    y: result.seriesMap.y ?? EMPTY_TELEMETRY.y,
+    channels: processedChannels,
+    events: processedEvents,
+    timeReference: telemetry.timeReference
   };
 };
 var useTelemetry = (options = {}) => {
@@ -5448,8 +6023,281 @@ var lapSummaryPanel = {
   }
 };
 
+// src/extensions/panels/stintDegradationPanel.tsx
+var import_jsx_runtime23 = require("react/jsx-runtime");
+var average = (values) => values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+var splitIntoStints = (values) => {
+  if (values.length === 0) {
+    return [[], [], []];
+  }
+  const third = Math.max(1, Math.floor(values.length / 3));
+  return [
+    values.slice(0, third),
+    values.slice(third, third * 2),
+    values.slice(third * 2)
+  ];
+};
+var stintDegradationPanel = {
+  id: "f1-telemetry-stint-degradation",
+  title: "Stint Degradation",
+  order: 130,
+  channels: ["degradation-summary"],
+  onMount: (context) => {
+    context.shared.publish("degradation-summary", {
+      samples: context.telemetry.speed.length
+    });
+  },
+  contextMenuActions: [
+    {
+      id: "publish-stint-samples",
+      label: "Publish samples",
+      onSelect: (context) => {
+        context.shared.publish("degradation-summary", {
+          samples: context.telemetry.speed.length
+        });
+      }
+    }
+  ],
+  render: ({ telemetry, comparison, theme, styleTokens }) => {
+    const palette = resolveThemeTokens(theme, styleTokens);
+    const [early, mid, late] = splitIntoStints(telemetry.speed);
+    const earlyAvg = average(early);
+    const midAvg = average(mid);
+    const lateAvg = average(late);
+    const degradation = earlyAvg > 0 ? (earlyAvg - lateAvg) / earlyAvg * 100 : 0;
+    const [comparisonEarly, comparisonMid, comparisonLate] = splitIntoStints(comparison?.speed ?? []);
+    return /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)(
+      "section",
+      {
+        style: {
+          borderRadius: 14,
+          border: `1px solid ${palette.border}`,
+          background: palette.background,
+          color: palette.text,
+          boxShadow: palette.shadow,
+          padding: 16
+        },
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("h4", { style: { margin: "0 0 12px", fontSize: 15 }, children: "Stint Degradation" }),
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 13 }, children: /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("tbody", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("tr", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("td", { style: { padding: "6px 0", color: palette.mutedText }, children: "Early stint avg speed" }),
+              /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("td", { style: { padding: "6px 0", textAlign: "right" }, children: [
+                earlyAvg.toFixed(1),
+                " km/h"
+              ] })
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("tr", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("td", { style: { padding: "6px 0", color: palette.mutedText }, children: "Mid stint avg speed" }),
+              /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("td", { style: { padding: "6px 0", textAlign: "right" }, children: [
+                midAvg.toFixed(1),
+                " km/h"
+              ] })
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("tr", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("td", { style: { padding: "6px 0", color: palette.mutedText }, children: "Late stint avg speed" }),
+              /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("td", { style: { padding: "6px 0", textAlign: "right" }, children: [
+                lateAvg.toFixed(1),
+                " km/h"
+              ] })
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("tr", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("td", { style: { padding: "6px 0", color: palette.mutedText }, children: "Degradation" }),
+              /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("td", { style: { padding: "6px 0", textAlign: "right" }, children: [
+                degradation.toFixed(2),
+                "%"
+              ] })
+            ] }),
+            comparison ? /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("tr", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("td", { style: { padding: "6px 0", color: palette.mutedText }, children: "Comparison late stint avg" }),
+              /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("td", { style: { padding: "6px 0", textAlign: "right" }, children: [
+                average(comparisonLate).toFixed(1),
+                " km/h (",
+                comparison.label ?? "Comparison",
+                ")"
+              ] })
+            ] }) : null,
+            comparison && comparisonEarly.length > 0 && comparisonMid.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("tr", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("td", { style: { padding: "6px 0", color: palette.mutedText }, children: "Comparison early/mid avg" }),
+              /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("td", { style: { padding: "6px 0", textAlign: "right" }, children: [
+                average(comparisonEarly).toFixed(1),
+                " / ",
+                average(comparisonMid).toFixed(1),
+                " km/h"
+              ] })
+            ] }) : null
+          ] }) })
+        ]
+      }
+    );
+  }
+};
+
+// src/extensions/panels/sectorPaceEvolutionPanel.tsx
+var import_jsx_runtime24 = require("react/jsx-runtime");
+var average2 = (values) => values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+var sectorPaceEvolutionPanel = {
+  id: "f1-telemetry-sector-pace-evolution",
+  title: "Sector Pace Evolution",
+  order: 140,
+  channels: ["sector-pace"],
+  contextMenuActions: [
+    {
+      id: "publish-sector-pace",
+      label: "Publish pace",
+      onSelect: (context) => {
+        const sectorMarkers = context.sectorMarkers ?? [];
+        context.shared.publish("sector-pace", {
+          sectors: Math.max(1, sectorMarkers.length + 1)
+        });
+      }
+    }
+  ],
+  render: ({ telemetry, comparison, sectorMarkers, theme, styleTokens }) => {
+    const palette = resolveThemeTokens(theme, styleTokens);
+    const markers = [...sectorMarkers ?? []].sort((left, right) => left - right);
+    const bounds = [telemetry.time[0] ?? 0, ...markers, telemetry.time[telemetry.time.length - 1] ?? 0];
+    const sectors = Array.from({ length: Math.max(1, bounds.length - 1) }, (_, index) => {
+      const start = bounds[index];
+      const end = bounds[index + 1];
+      const primaryValues = telemetry.speed.filter((_2, sampleIndex) => {
+        const time = telemetry.time[sampleIndex];
+        return time >= start && time <= end;
+      });
+      const comparisonValues = comparison ? comparison.speed.filter((_2, sampleIndex) => {
+        const time = comparison.time[sampleIndex];
+        return time >= start && time <= end;
+      }) : [];
+      const primaryAvg = average2(primaryValues);
+      const comparisonAvg = average2(comparisonValues);
+      return {
+        sector: index + 1,
+        primaryAvg,
+        comparisonAvg,
+        delta: comparison ? primaryAvg - comparisonAvg : null
+      };
+    });
+    return /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(
+      "section",
+      {
+        style: {
+          borderRadius: 14,
+          border: `1px solid ${palette.border}`,
+          background: palette.background,
+          color: palette.text,
+          boxShadow: palette.shadow,
+          padding: 16
+        },
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("h4", { style: { margin: "0 0 12px", fontSize: 15 }, children: "Sector Pace Evolution" }),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 13 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("tr", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("th", { style: { textAlign: "left", paddingBottom: 6 }, children: "Sector" }),
+              /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("th", { style: { textAlign: "right", paddingBottom: 6 }, children: "Primary" }),
+              comparison ? /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("th", { style: { textAlign: "right", paddingBottom: 6 }, children: "Comparison" }) : null,
+              comparison ? /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("th", { style: { textAlign: "right", paddingBottom: 6 }, children: "Delta" }) : null
+            ] }) }),
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("tbody", { children: sectors.map((sector) => /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("tr", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("td", { style: { padding: "6px 0", color: palette.mutedText }, children: [
+                "S",
+                sector.sector
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("td", { style: { padding: "6px 0", textAlign: "right" }, children: [
+                sector.primaryAvg.toFixed(1),
+                " km/h"
+              ] }),
+              comparison ? /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("td", { style: { padding: "6px 0", textAlign: "right" }, children: [
+                sector.comparisonAvg.toFixed(1),
+                " km/h"
+              ] }) : null,
+              comparison ? /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("td", { style: { padding: "6px 0", textAlign: "right" }, children: [
+                (sector.delta ?? 0) >= 0 ? "+" : "",
+                (sector.delta ?? 0).toFixed(1),
+                " km/h"
+              ] }) : null
+            ] }, `sector-${sector.sector}`)) })
+          ] })
+        ]
+      }
+    );
+  }
+};
+
+// src/extensions/panels/overtakeTimelinePanel.tsx
+var import_jsx_runtime25 = require("react/jsx-runtime");
+var normalizeEvent = (event) => ({
+  time: event.time,
+  label: event.description ?? event.type
+});
+var inferOvertakes = (primaryTime, primarySpeed, comparisonSpeed) => {
+  const inferred = [];
+  if (primaryTime.length < 2 || comparisonSpeed.length < 2) {
+    return inferred;
+  }
+  const length = Math.min(primaryTime.length, primarySpeed.length, comparisonSpeed.length);
+  for (let index = 1; index < length; index += 1) {
+    const previousDelta = primarySpeed[index - 1] - comparisonSpeed[index - 1];
+    const currentDelta = primarySpeed[index] - comparisonSpeed[index];
+    if (previousDelta <= 0 && currentDelta > 0) {
+      inferred.push({
+        time: primaryTime[index],
+        label: "Inferred overtake"
+      });
+    }
+  }
+  return inferred;
+};
+var overtakeTimelinePanel = {
+  id: "f1-telemetry-overtake-timeline",
+  title: "Overtake Timeline",
+  order: 150,
+  channels: ["overtake-events"],
+  contextMenuActions: [
+    {
+      id: "publish-overtake-events",
+      label: "Publish events",
+      onSelect: (context) => {
+        const eventCount = (context.telemetry.events ?? []).filter(
+          (event) => event.type.toLowerCase().includes("overtake")
+        ).length;
+        context.shared.publish("overtake-events", { count: eventCount });
+      }
+    }
+  ],
+  render: ({ telemetry, comparison, theme, styleTokens }) => {
+    const palette = resolveThemeTokens(theme, styleTokens);
+    const explicitEvents = (telemetry.events ?? []).filter((event) => event.type.toLowerCase().includes("overtake") || event.type.toLowerCase().includes("pass")).map(normalizeEvent);
+    const inferredEvents = explicitEvents.length === 0 && comparison ? inferOvertakes(telemetry.time, telemetry.speed, comparison.speed) : [];
+    const events = explicitEvents.length > 0 ? explicitEvents : inferredEvents;
+    return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(
+      "section",
+      {
+        style: {
+          borderRadius: 14,
+          border: `1px solid ${palette.border}`,
+          background: palette.background,
+          color: palette.text,
+          boxShadow: palette.shadow,
+          padding: 16
+        },
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("h4", { style: { margin: "0 0 12px", fontSize: 15 }, children: "Overtake Timeline" }),
+          events.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("ol", { style: { margin: 0, paddingLeft: 18, display: "grid", gap: 8, fontSize: 13 }, children: events.map((event, index) => /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("li", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("strong", { style: { marginRight: 6 }, children: [
+              "t=",
+              event.time.toFixed(2),
+              "s"
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("span", { style: { color: palette.mutedText }, children: event.label })
+          ] }, `overtake-${event.time}-${index}`)) }) : /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("p", { style: { margin: 0, color: palette.mutedText, fontSize: 13 }, children: "No explicit overtake events were found in this telemetry session." })
+        ]
+      }
+    );
+  }
+};
+
 // src/adapters/shared.ts
-var toNumber2 = (value) => {
+var toNumber3 = (value) => {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
   }
@@ -5484,7 +6332,7 @@ var parseClockLikeTime = (value) => {
   return null;
 };
 var toSeconds = (value) => {
-  const direct = toNumber2(value);
+  const direct = toNumber3(value);
   if (direct !== null) {
     return direct;
   }
@@ -5551,15 +6399,15 @@ var BATTERY_LEVEL_KEYS = ["BatteryLevel", "batteryLevel", "soc"];
 var fromPoints = (points) => {
   const normalized = points.map((point, index) => ({
     time: toSeconds(pickField(point, TIME_KEYS2)) ?? index,
-    speed: toNumber2(pickField(point, SPEED_KEYS2)) ?? 0,
-    throttle: toNumber2(pickField(point, THROTTLE_KEYS2)) ?? 0,
-    brake: toNumber2(pickField(point, BRAKE_KEYS2)) ?? 0,
-    x: toNumber2(pickField(point, X_KEYS2)) ?? 0,
-    y: toNumber2(pickField(point, Y_KEYS2)) ?? 0,
-    gear: toNumber2(pickField(point, GEAR_KEYS)) ?? void 0,
-    ersDeployment: toNumber2(pickField(point, ERS_DEPLOYMENT_KEYS)) ?? void 0,
-    ersHarvest: toNumber2(pickField(point, ERS_HARVEST_KEYS)) ?? void 0,
-    batteryLevel: toNumber2(pickField(point, BATTERY_LEVEL_KEYS)) ?? void 0
+    speed: toNumber3(pickField(point, SPEED_KEYS2)) ?? 0,
+    throttle: toNumber3(pickField(point, THROTTLE_KEYS2)) ?? 0,
+    brake: toNumber3(pickField(point, BRAKE_KEYS2)) ?? 0,
+    x: toNumber3(pickField(point, X_KEYS2)) ?? 0,
+    y: toNumber3(pickField(point, Y_KEYS2)) ?? 0,
+    gear: toNumber3(pickField(point, GEAR_KEYS)) ?? void 0,
+    ersDeployment: toNumber3(pickField(point, ERS_DEPLOYMENT_KEYS)) ?? void 0,
+    ersHarvest: toNumber3(pickField(point, ERS_HARVEST_KEYS)) ?? void 0,
+    batteryLevel: toNumber3(pickField(point, BATTERY_LEVEL_KEYS)) ?? void 0
   }));
   return formatTelemetry(normalized);
 };
@@ -5609,25 +6457,25 @@ var PRESSURE_KEYS = ["air_pressure", "pressure"];
 var fromOpenF1Telemetry = (input) => {
   const points = input.map((point, index) => ({
     time: toSeconds(pickField(point, TIME_KEYS3)) ?? index,
-    speed: toNumber2(pickField(point, SPEED_KEYS3)) ?? 0,
-    throttle: toNumber2(pickField(point, THROTTLE_KEYS3)) ?? 0,
-    brake: toNumber2(pickField(point, BRAKE_KEYS3)) ?? 0,
-    x: toNumber2(pickField(point, X_KEYS3)) ?? 0,
-    y: toNumber2(pickField(point, Y_KEYS3)) ?? 0,
-    gear: toNumber2(pickField(point, GEAR_KEYS2)) ?? void 0,
-    airTemp: toNumber2(pickField(point, AIR_TEMP_KEYS)) ?? void 0,
-    trackTemp: toNumber2(pickField(point, TRACK_TEMP_KEYS)) ?? void 0,
-    humidity: toNumber2(pickField(point, HUMIDITY_KEYS)) ?? void 0,
-    windSpeed: toNumber2(pickField(point, WIND_SPEED_KEYS)) ?? void 0,
-    rainfall: toNumber2(pickField(point, RAINFALL_KEYS)) ?? void 0,
-    pressure: toNumber2(pickField(point, PRESSURE_KEYS)) ?? void 0
+    speed: toNumber3(pickField(point, SPEED_KEYS3)) ?? 0,
+    throttle: toNumber3(pickField(point, THROTTLE_KEYS3)) ?? 0,
+    brake: toNumber3(pickField(point, BRAKE_KEYS3)) ?? 0,
+    x: toNumber3(pickField(point, X_KEYS3)) ?? 0,
+    y: toNumber3(pickField(point, Y_KEYS3)) ?? 0,
+    gear: toNumber3(pickField(point, GEAR_KEYS2)) ?? void 0,
+    airTemp: toNumber3(pickField(point, AIR_TEMP_KEYS)) ?? void 0,
+    trackTemp: toNumber3(pickField(point, TRACK_TEMP_KEYS)) ?? void 0,
+    humidity: toNumber3(pickField(point, HUMIDITY_KEYS)) ?? void 0,
+    windSpeed: toNumber3(pickField(point, WIND_SPEED_KEYS)) ?? void 0,
+    rainfall: toNumber3(pickField(point, RAINFALL_KEYS)) ?? void 0,
+    pressure: toNumber3(pickField(point, PRESSURE_KEYS)) ?? void 0
   }));
   return formatTelemetry(points);
 };
 var fromOpenF1TelemetryWithDiagnostics = (input, options = {}) => toAdapterResult("openf1", fromOpenF1Telemetry(input), input.length, options);
 
 // src/adapters/ergast.ts
-var asRequiredNumber = (value) => toNumber2(value) ?? 0;
+var asRequiredNumber = (value) => toNumber3(value) ?? 0;
 var fromErgastApi = (data) => {
   const results = (data.Results ?? []).map((result) => {
     const fastestLapTime = result.FastestLap?.Time?.time ? parseLapTimeString(result.FastestLap.Time.time) ?? void 0 : void 0;
@@ -5640,11 +6488,11 @@ var fromErgastApi = (data) => {
       points: asRequiredNumber(result.points),
       lapsCompleted: asRequiredNumber(result.laps),
       status: result.status,
-      totalTimeMs: toNumber2(result.Time?.millis) ?? void 0,
+      totalTimeMs: toNumber3(result.Time?.millis) ?? void 0,
       fastestLapTime,
-      fastestLapNumber: toNumber2(result.FastestLap?.lap) ?? void 0,
-      fastestLapRank: toNumber2(result.FastestLap?.rank) ?? void 0,
-      averageSpeedKmh: toNumber2(result.FastestLap?.AverageSpeed?.speed) ?? void 0
+      fastestLapNumber: toNumber3(result.FastestLap?.lap) ?? void 0,
+      fastestLapRank: toNumber3(result.FastestLap?.rank) ?? void 0,
+      averageSpeedKmh: toNumber3(result.FastestLap?.AverageSpeed?.speed) ?? void 0
     };
   });
   const driverIdToCode = /* @__PURE__ */ new Map();
@@ -5698,7 +6546,7 @@ var parseGap = (gap) => {
   if (!normalized || /lap/i.test(normalized)) {
     return null;
   }
-  const parsed = toNumber2(normalized.replace(/^\+/, ""));
+  const parsed = toNumber3(normalized.replace(/^\+/, ""));
   return parsed ?? null;
 };
 var fromMultiViewerCarData = (data) => {
@@ -5713,12 +6561,12 @@ var fromMultiViewerCarData = (data) => {
     const brakeValue = typeof entry.channels.brake === "boolean" ? entry.channels.brake ? 100 : 0 : entry.channels.brake;
     return {
       time: Number.isFinite(start) ? (Date.parse(entry.timestamp) - start) / 1e3 : index,
-      speed: toNumber2(entry.channels.speed) ?? 0,
-      throttle: toNumber2(entry.channels.throttle) ?? 0,
-      brake: toNumber2(brakeValue) ?? 0,
-      x: toNumber2(entry.position?.x) ?? 0,
-      y: toNumber2(entry.position?.y) ?? 0,
-      gear: toNumber2(entry.channels.gear) ?? void 0
+      speed: toNumber3(entry.channels.speed) ?? 0,
+      throttle: toNumber3(entry.channels.throttle) ?? 0,
+      brake: toNumber3(brakeValue) ?? 0,
+      x: toNumber3(entry.position?.x) ?? 0,
+      y: toNumber3(entry.position?.y) ?? 0,
+      gear: toNumber3(entry.channels.gear) ?? void 0
     };
   });
   return formatTelemetry(points);
@@ -5737,7 +6585,7 @@ var fromMultiViewerTiming = (data) => data.map((entry) => ({
     entry.sector3 ? parseLapTimeString(entry.sector3) : null
   ],
   tyreCompound: entry.tyreCompound ?? null,
-  tyreAge: toNumber2(entry.tyreAge) ?? null
+  tyreAge: toNumber3(entry.tyreAge) ?? null
 }));
 
 // src/adapters/json.ts
@@ -7016,7 +7864,7 @@ var getNextRace = (today = /* @__PURE__ */ new Date()) => {
   return RACE_CALENDAR_2025.find((race) => Date.parse(race.raceDate) >= now);
 };
 var getSprintWeekends = () => RACE_CALENDAR_2025.filter((race) => race.isSprint);
-var getRaceByRound = (round) => RACE_CALENDAR_2025.find((race) => race.round === round);
+var getRaceByRound = (round2) => RACE_CALENDAR_2025.find((race) => race.round === round2);
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   EnergyChart,
@@ -7035,6 +7883,7 @@ var getRaceByRound = (round) => RACE_CALENDAR_2025.find((race) => race.round ===
   SpeedChart,
   SpeedHeatmapTrackMap,
   TEAM_COLORS,
+  TELEMETRY_EXTENSION_API_VERSION,
   TRACKS,
   TYRE_COMPOUNDS,
   TelemetryDashboard,
@@ -7044,6 +7893,7 @@ var getRaceByRound = (round) => RACE_CALENDAR_2025.find((race) => race.round ===
   TrackMap,
   TyreStrategyTimeline,
   WeatherWidget,
+  assertTelemetryExtensionCompatible,
   classifyTyreCompound,
   clearTelemetryPanels,
   computeLapTimes,
@@ -7095,9 +7945,14 @@ var getRaceByRound = (round) => RACE_CALENDAR_2025.find((race) => race.round ===
   lapSummaryPanel,
   mergeTelemetry,
   normalizeDistance,
+  normalizeTelemetryPanelExtension,
+  normalizeTelemetryTime,
+  overtakeTimelinePanel,
   processSeriesData,
   processSeriesDataInWorker,
   registerTelemetryPanel,
+  sectorPaceEvolutionPanel,
+  stintDegradationPanel,
   telemetryCssVariables,
   telemetryStatsPanel,
   unregisterTelemetryPanel,

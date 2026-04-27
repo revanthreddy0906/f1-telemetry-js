@@ -1,0 +1,11 @@
+{
+  "name": "f1-telemetry-react-native-template",
+  "private": true,
+  "version": "0.1.0",
+  "main": "index.js",
+  "dependencies": {
+    "@f1-telemetry-js/react-native-core": "^2.0.0",
+    "react": "^18.3.1",
+    "react-native": "^0.74.0"
+  }
+}

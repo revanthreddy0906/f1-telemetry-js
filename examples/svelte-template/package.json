@@ -1,0 +1,18 @@
+{
+  "name": "f1-telemetry-svelte-template",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@f1-telemetry-js/svelte": "^2.0.0",
+    "svelte": "^4.2.0"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^3.1.0",
+    "vite": "^5.4.0"
+  }
+}

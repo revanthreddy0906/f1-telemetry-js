@@ -6,6 +6,7 @@ import type {
   DataProcessingOptions,
   FormattedTelemetry,
   RawTelemetryInput,
+  TelemetryExtraChannel,
   ValidationMode,
   TelemetryValidationResult
 } from "../types/telemetry";
@@ -65,13 +66,46 @@ const processTelemetry = (
     processing
   });
 
+  const processedChannels = telemetry.channels
+    ? (Object.fromEntries(
+        Object.entries(telemetry.channels).map(([channel, values]) => {
+          const channelResult = processSeriesData<{ values: number[] }>({
+            context: `useTelemetry.channels.${channel}`,
+            time: telemetry.time,
+            seriesMap: {
+              values: values ?? []
+            },
+            processing
+          });
+          return [channel, channelResult.seriesMap.values ?? []];
+        })
+      ) as Partial<Record<TelemetryExtraChannel, number[]>>)
+    : undefined;
+
+  const processedEvents = telemetry.events
+    ? telemetry.events.filter((event) => {
+        const start = processing.window?.startTime;
+        const end = processing.window?.endTime;
+        if (typeof start === "number" && event.time < start) {
+          return false;
+        }
+        if (typeof end === "number" && event.time > end) {
+          return false;
+        }
+        return true;
+      })
+    : undefined;
+
   return {
     time: result.time,
     speed: result.seriesMap.speed ?? EMPTY_TELEMETRY.speed,
     throttle: result.seriesMap.throttle ?? EMPTY_TELEMETRY.throttle,
     brake: result.seriesMap.brake ?? EMPTY_TELEMETRY.brake,
     x: result.seriesMap.x ?? EMPTY_TELEMETRY.x,
-    y: result.seriesMap.y ?? EMPTY_TELEMETRY.y
+    y: result.seriesMap.y ?? EMPTY_TELEMETRY.y,
+    channels: processedChannels,
+    events: processedEvents,
+    timeReference: telemetry.timeReference
   };
 };
 

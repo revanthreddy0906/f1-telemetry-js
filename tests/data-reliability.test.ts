@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatTelemetry, processSeriesData, validateTelemetry } from "../src";
+import { formatTelemetry, normalizeTelemetryTime, processSeriesData, validateTelemetry } from "../src";
 
 describe("v1.2 data reliability", () => {
   it("supports extra channel and event formatting", () => {
@@ -52,5 +52,22 @@ describe("v1.2 data reliability", () => {
 
     expect(processed.time).toEqual([0, 1, 2, 3]);
     expect(processed.seriesMap.speed).toEqual([100, 121, 140, 150]);
+  });
+
+  it("normalizes telemetry time semantics with explicit reference", () => {
+    const normalized = normalizeTelemetryTime({
+      time: [120.5, 121.5, 123],
+      speed: [100, 110, 120],
+      throttle: [20, 30, 40],
+      brake: [0, 0, 0],
+      x: [1, 2, 3],
+      y: [2, 3, 4],
+      events: [{ time: 121, type: "drs" }],
+      timeReference: "session"
+    });
+
+    expect(normalized.time).toEqual([0, 1, 2.5]);
+    expect(normalized.events?.[0].time).toBe(0.5);
+    expect(normalized.timeReference).toBe("session");
   });
 });
